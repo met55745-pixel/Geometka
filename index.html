@@ -42,7 +42,6 @@
             display: none;
         }
 
-        /* Разделяем стили активации для экрана логина и карты */
         #screen-login.active {
             display: flex;
             flex-direction: column;
@@ -128,7 +127,6 @@
             background: #000; 
         }
         
-        /* Карта теперь жестко прибита на весь экран */
         #map-container { 
             position: absolute;
             top: 0; left: 0;
@@ -186,11 +184,16 @@
             margin-left: 4px;
         }
 
+        /* 🛡️ БУЛЛЕТПРУФ-ФИКС: Прячем зум слева сверху на уровне стилей, если кэш залагал */
+        .leaflet-top.leaflet-left .leaflet-control-zoom {
+            display: none !important;
+        }
+
         /* Кастомизация кнопок зума в правом нижнем углу */
         .leaflet-control-zoom {
             border: 1px solid var(--border) !important;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
-            margin-bottom: 25px !important; /* Приподнимаем над системной полоской Android */
+            margin-bottom: 25px !important; 
             margin-right: 15px !important;
         }
         .leaflet-control-zoom-in, .leaflet-control-zoom-out {
@@ -277,9 +280,8 @@
             document.getElementById('player-avatar').style.backgroundImage = `url('https://api.dicebear.com/7.x/bottts/svg?seed=${currentUsername}')`;
 
             if (!map) {
-                // ВАЖНО: Вырубаем дефолтный зум кнопкой zoomControl: false
                 map = L.map('map-container', {
-                    zoomControl: false,
+                    zoomControl: false, // Отключаем дефолтный зум
                     attributionControl: true
                 }).setView([66.5300, 66.6150], 16);
 
@@ -287,16 +289,15 @@
                     maxZoom: 19
                 }).addTo(map);
 
-                // ВАЖНО: Врубаем кастомный зум строго в правый нижний угол!
+                // Создаем зум заново, принудительно двигая его в правый нижний угол
                 L.control.zoom({ position: 'bottomright' }).addTo(map);
             }
 
-            // ЖЕСТКИЙ ПРИНУДИТЕЛЬНЫЙ ФИКС РАЗМЕРА ДЛЯ СМАРТФОНОВ
             setTimeout(() => {
                 if (map) {
                     map.invalidateSize();
                 }
-            }, 250);
+            }, 300);
 
             startLocationTracking();
         }
