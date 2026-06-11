@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>GeoMetka</title>
+    <title>GeoMetka — Tactical Navigation Engine</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -12,11 +12,13 @@
             --bg-dark: #0a0a0f;
             --bg-grid: #121218;
             --card-glass: rgba(20, 20, 26, 0.95);
-            --accent-gray: #2f3542;
+            --accent-blue: #0066ff;
+            --accent-green: #2ecc71;
             --accent-red: #ff4757; 
             --text-main: #ffffff;
             --text-muted: #747d8c;
             --border: rgba(255, 255, 255, 0.1);
+            --shadow-neon: rgba(0, 102, 255, 0.3);
         }
 
         * {
@@ -24,6 +26,7 @@
             margin: 0; padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
             user-select: none;
         }
 
@@ -40,6 +43,7 @@
             top: 0; left: 0;
             width: 100vw; height: 100vh;
             display: none;
+            z-index: 10;
         }
 
         #screen-login.active {
@@ -54,7 +58,7 @@
         }
 
         /* ==========================================================================
-           ТАКТИЧЕСКИЙ ФОН ЛОГИНА
+           ИНТЕРФЕЙС ЛОГИНА И ТАКТИЧЕСКИЙ ОВЕРЛЕЙ
            ========================================================================== */
         .tactical-grid {
             position: absolute;
@@ -71,147 +75,108 @@
             content: '';
             position: absolute;
             top: 50%; left: 50%;
-            width: 100px; height: 100px;
-            border: 1px dashed rgba(255, 255, 255, 0.05);
+            width: 120px; height: 120px;
+            border: 1px dashed rgba(0, 102, 255, 0.15);
             border-radius: 50%;
             transform: translate(-50%, -50%);
-        }
-
-        /* ==========================================================================
-           МОДУЛЬ 1: ВХОД
-           ========================================================================== */
-        #screen-login {
-            z-index: 100;
+            animation: radarPulse 4s linear infinite;
         }
 
         .login-container {
-            width: 88%; max-width: 360px; padding: 35px 25px;
+            width: 88%; max-width: 360px; padding: 40px 30px;
             background: var(--card-glass);
-            border: 1px solid var(--border); border-radius: 20px;
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8);
+            border: 1px solid var(--border); border-radius: 24px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0,0,0,0.5);
             z-index: 10;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .brand-header { text-align: center; margin-bottom: 35px; }
         .brand-logo {
-            font-size: 28px; font-weight: 800; letter-spacing: 1px;
-            color: var(--text-main); text-transform: uppercase;
+            font-size: 30px; font-weight: 900; letter-spacing: 2px;
+            background: linear-gradient(135deg, #fff, var(--text-muted));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-        .brand-tagline { font-size: 11px; color: var(--text-muted); margin-top: 5px; text-transform: uppercase; letter-spacing: 2px; }
+        .brand-tagline { font-size: 11px; color: var(--text-muted); margin-top: 5px; text-transform: uppercase; letter-spacing: 3px; }
 
-        .input-group { position: relative; margin-bottom: 20px; }
+        .input-group { position: relative; margin-bottom: 25px; }
         .input-group input {
-            width: 100%; padding: 15px 18px; background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; outline: none; color: var(--text-main); font-size: 15px; transition: all 0.25s ease;
+            width: 100%; padding: 16px 20px; background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; outline: none; color: var(--text-main); font-size: 16px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .input-group input:focus { border-color: var(--text-muted); background: rgba(255, 255, 255, 0.05); }
-        .input-group label { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; transition: all 0.25s ease; font-size: 14px; }
+        .input-group input:focus { border-color: var(--accent-blue); background: rgba(0, 102, 255, 0.02); box-shadow: 0 0 15px var(--shadow-neon); }
+        .input-group label { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; transition: all 0.25s ease; font-size: 15px; }
         
         .input-group input:focus ~ label,
         .input-group input:not(:placeholder-shown) ~ label {
-            top: -9px; left: 10px; font-size: 11px; color: var(--text-main); background: #131318; padding: 2px 6px; border-radius: 4px;
+            top: -10px; left: 12px; font-size: 11px; color: #fff; background: #0c0c12; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border);
         }
 
         .btn-submit {
-            width: 100%; padding: 15px; background: var(--text-main);
-            border: none; border-radius: 12px; color: var(--bg-dark); font-size: 15px; font-weight: 700; cursor: pointer;
-            transition: opacity 0.2s; margin-bottom: 15px;
+            width: 100%; padding: 16px; background: var(--text-main);
+            border: none; border-radius: 14px; color: var(--bg-dark); font-size: 15px; font-weight: 800; cursor: pointer;
+            transition: all 0.2s ease; letter-spacing: 1px;
         }
-        .btn-submit:active { opacity: 0.8; }
+        .btn-submit:active { transform: scale(0.98); opacity: 0.9; }
 
         /* ==========================================================================
-           МОДУЛЬ 2: ИГРОВАЯ КАРТА И ЛЕТНИЙ HUD
+           ИГРОВОЙ ОВЕРЛЕЙ И HUD КОМПОНЕНТЫ
            ========================================================================== */
-        #screen-map { 
-            z-index: 50; 
-            background: #eef1f5; 
-        }
-        
         #map-container { 
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; 
-            height: 100%; 
-            z-index: 10;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
         }
         
         .hud-top-panel {
-            position: absolute;
-            top: 20px; 
-            left: 24px; 
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            z-index: 9999; 
-            pointer-events: none;
+            position: absolute; top: 20px; left: 20px;
+            display: flex; align-items: center; gap: 12px;
+            z-index: 9999; pointer-events: none;
         }
 
         .hud-avatar {
-            width: 48px; height: 48px;
-            border-radius: 50%;
-            border: 2px solid var(--border);
-            background-color: #1a1a24;
-            background-size: cover;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            pointer-events: auto;
-            flex-shrink: 0; 
+            width: 52px; height: 52px; border-radius: 50%;
+            border: 2px solid var(--border); background-color: #1a1a24;
+            background-size: cover; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            pointer-events: auto; flex-shrink: 0; transition: transform 0.3s ease;
         }
+        .hud-avatar:active { transform: scale(0.95); }
 
         .hud-stats-badge {
-            background: var(--card-glass);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 12px 20px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            color: #ffffff;
-            font-size: 14px;
-            font-weight: 600;
-            letter-spacing: 0.3px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
-            pointer-events: auto;
+            background: var(--card-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 16px; padding: 12px 24px;
+            display: flex; align-items: center; gap: 16px; color: #ffffff;
+            font-size: 14px; font-weight: 700; letter-spacing: 0.5px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); pointer-events: auto;
         }
 
-        .stats-divider {
-            color: rgba(255, 255, 255, 0.2);
-            font-weight: 300;
-        }
+        .stats-divider { color: rgba(255, 255, 255, 0.15); font-weight: 300; }
+        .stats-val { color: var(--accent-blue); font-weight: 800; margin-left: 6px; }
 
-        .stats-val {
-            color: #ffffff;
-            font-weight: 700;
-            margin-left: 5px;
-        }
-
-        /* Полностью скрываем дефолтный зум Leaflet */
-        .leaflet-top.leaflet-left {
-            display: none !important;
-        }
-
-        /* Позиционирование кнопок зума снизу справа */
-        .leaflet-bottom.leaflet-right {
-            bottom: 40px !important; 
-            right: 20px !important;
-            z-index: 999;
-        }
+        /* ТАКТИЧЕСКИЕ ПАНЕЛИ УПРАВЛЕНИЯ ЗУМОМ */
+        .leaflet-bottom.leaflet-right { bottom: 40px !important; right: 20px !important; z-index: 999; }
+        .leaflet-top.leaflet-left { display: none !important; } /* Полностью глушим дефолт */
 
         .leaflet-control-zoom {
-            border: 1px solid rgba(0, 0, 0, 0.15) !important;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
-            border-radius: 10px !important;
-            overflow: hidden;
+            border: 1px solid var(--border) !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
+            border-radius: 14px !important; overflow: hidden;
         }
+        
         .leaflet-control-zoom-in, .leaflet-control-zoom-out {
-            background: #ffffff !important; 
-            color: #2f3542 !important;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
-            font-weight: 700 !important;
+            background: var(--card-glass) !important;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: #ffffff !important; border-bottom: 1px solid var(--border) !important;
+            font-weight: 800 !important; width: 44px !important; height: 44px !important;
+            line-height: 44px !important; font-size: 18px !important; transition: background 0.2s;
         }
-        .leaflet-bar a:hover { background: #f1f2f6 !important; }
-        .leaflet-control-attribution { background: rgba(255,255,255,0.7) !important; color: #747d8c !important; border-radius: 4px; padding: 0 5px !important; }
+        .leaflet-control-zoom-in:active, .leaflet-control-zoom-out:active { background: rgba(255,255,255,0.1) !important; }
+        .leaflet-control-attribution { background: rgba(10,10,15,0.6) !important; color: rgba(255,255,255,0.3) !important; font-size: 10px; border-radius: 4px; }
+
+        @keyframes radarPulse {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
+            50% { opacity: 0.4; }
+            100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -221,26 +186,26 @@
         <div class="login-container">
             <div class="brand-header">
                 <h1 class="brand-logo">GEOMETKA</h1>
-                <p class="brand-tagline">Захват территории</p>
+                <p class="brand-tagline">Система контроля</p>
             </div>
 
             <form id="loginForm" onsubmit="handleLocalLogin(event)">
                 <div class="input-group">
                     <input type="text" id="username" placeholder=" " required autocomplete="off">
-                    <label for="username">Твой уникальный ник</label>
+                    <label for="username">Твой позывной</label>
                 </div>
-                <button type="submit" class="btn-submit">Войти по нику</button>
+                <button type="submit" class="btn-submit">ИНИЦИАЛИЗАЦИЯ</button>
             </form>
         </div>
     </div>
 
     <div id="screen-map" class="app-screen">
         <div class="hud-top-panel">
-            <div class="hud-avatar" id="player-avatar"></div>
+            <div class="hud-avatar" id="player-avatar" onclick="SoundMatrix.playClick()"></div>
             <div class="hud-stats-badge">
                 <div>шаги:<span class="stats-val" id="hud-steps">0</span></div>
                 <div class="stats-divider">|</div>
-                <div>захвачено:<span class="stats-val" id="hud-captured">0%</span></div>
+                <div>сектора:<span class="stats-val" id="hud-captured">0</span></div>
             </div>
         </div>
         <div id="map-container"></div>
@@ -250,11 +215,65 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     
     <script>
-        let currentUsername = null;
-        let playerUID = null;
-        
+        // ==========================================================================
+        // ГЛОБАЛЬНОЕ СОСТОЯНИЕ ДВИЖКА (STATE PATTERN)
+        // ==========================================================================
+        const AppState = {
+            username: null,
+            uid: null,
+            metrics: {
+                steps: 0,
+                capturedZones: 0,
+                totalDistanceMeters: 0,
+                lastLat: null,
+                lastLng: null
+            },
+            config: {
+                gridSizeDegrees: 0.0015, // Размер игрового сектора (~150 метров)
+                salekhardCenter: [66.5300, 66.6150]
+            }
+        };
+
+        // ==========================================================================
+        // СИНТЕЗАТОР ЗВУКОВОЙ МАТРИЦЫ (WEB AUDIO API ENGINE)
+        // ==========================================================================
+        const SoundMatrix = {
+            ctx: null,
+            init() {
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            },
+            playClick() {
+                this.init();
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(440, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.08);
+            },
+            playSuccess() {
+                this.init();
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(587.33, this.ctx.currentTime); // Ре
+                osc.frequency.setValueAtTime(880, this.ctx.currentTime + 0.1); // Ля
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.25);
+            }
+        };
+
+        // ==========================================================================
+        // СЕНСОРНЫЙ КИНЕТИЧЕСКИЙ ДВИЖОК КАРТЫ (LEAFLET GESTURE UPGRADE)
+        // ==========================================================================
         let map = null;
         let playerMarker = null;
+        let gridSectorsLayer = null;
 
         function switchScreen(screenId) {
             document.querySelectorAll('.app-screen').forEach(screen => screen.classList.remove('active'));
@@ -265,6 +284,7 @@
             event.preventDefault();
             const username = document.getElementById('username').value.trim();
             if (username) {
+                SoundMatrix.playSuccess();
                 savePlayerSession(username, 'USER_' + username);
                 bootIntoGame();
             }
@@ -273,8 +293,8 @@
         function savePlayerSession(name, uid) {
             localStorage.setItem('geo_username', name);
             localStorage.setItem('geo_uid', uid);
-            currentUsername = name;
-            playerUID = uid;
+            AppState.username = name;
+            AppState.uid = uid;
         }
 
         function bootIntoGame() {
@@ -283,33 +303,55 @@
         }
 
         function initGameEngine() {
-            console.log(`Инициализация для: ${currentUsername}`);
-            
-            document.getElementById('player-avatar').style.backgroundImage = `url('https://api.dicebear.com/7.x/bottts/svg?seed=${currentUsername}')`;
+            document.getElementById('player-avatar').style.backgroundImage = `url('https://api.dicebear.com/7.x/bottts/svg?seed=${AppState.username}')`;
 
             if (!map) {
+                // ПОЛНАЯ НАСТРОЙКА КИНЕТИКИ СЕНСОРОВ, ОПТИМИЗАЦИЯ ПОД МУЛЬТИТАЧ СМАРТФОНОВ
                 map = L.map('map-container', {
-                    zoomControl: false, 
-                    attributionControl: true
-                }).setView([66.5300, 66.6150], 16);
+                    zoomControl: false,
+                    attributionControl: true,
+                    // Сенсорные фиксы приближения и отдаления:
+                    touchZoom: 'center',       // Зум строго центрируется по тачу пальцев
+                    bounceAtZoomLimits: false, // Отключаем резиновый лаг на границах зума
+                    zoomAnimation: true,       // Плавная интерполяция приближения
+                    fadeAnimation: true,       // Мягкое проявление слоев карты
+                    markerZoomAnimation: true,
+                    maxBoundsViscosity: 0.8,
+                    inertia: true,             // Включаем инерцию и кинетический скролл пальцем
+                    inertiaDeceleration: 3000, // Плавное торможение карты после броска пальцем
+                    inertiaMaxSpeed: 1500,
+                    wheelDebounceTime: 40      // Быстрый отклик на колесико/жесты
+                }).setView(AppState.config.salekhardCenter, 15);
 
-                // РЕАЛЬНАЯ ЛЕТНЯЯ КАРТА (СОЧНАЯ ЗЕЛЕНЬ, ПАРКИ И ЗДАНИЯ)
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19
+                // ВЫСОКОДЕТАЛИЗИРОВАННАЯ ЛЕТНЯЯ КАРТА С ФИКСОМ RETINA-РАЗМЫТИЯ ШРИФТОВ
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    maxZoom: 19,
+                    minZoom: 13,
+                    detectRetina: true, // ФИКС: Принудительный рендеринг высокого разрешения для Retina экранов
+                    updateWhenIdle: false,
+                    updateWhenZooming: true
                 }).addTo(map);
 
+                // Монтируем контроллер зума в нижний правый угол
                 L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+                // Слой игровых тактических секторов
+                gridSectorsLayer = L.layerGroup().addTo(map);
+                
+                // При таче по карте проигрываем тактический клик
+                map.on('click', () => SoundMatrix.playClick());
+                map.on('zoomstart', () => SoundMatrix.playClick());
             }
 
-            setTimeout(() => {
-                if (map) {
-                    map.invalidateSize();
-                }
-            }, 300);
+            // Корректируем размеры контейнера
+            setTimeout(() => { if (map) map.invalidateSize(); }, 300);
 
             startLocationTracking();
         }
 
+        // ==========================================================================
+        // АЛГОРИТМ ГЕОЛОКАЦИИ И МАТЕМАТИЧЕСКИЙ РАСЧЕТ ШАГОВ (HAVERSINE MECHANICS)
+        // ==========================================================================
         function startLocationTracking() {
             if (navigator.geolocation) {
                 navigator.geolocation.watchPosition(
@@ -317,34 +359,141 @@
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
 
+                        // Вычисление пройденного расстояния и конвертация в шаги
+                        if (AppState.metrics.lastLat !== null && AppState.metrics.lastLng !== null) {
+                            const distance = calculateDistance(AppState.metrics.lastLat, AppState.metrics.lastLng, lat, lng);
+                            if (distance > 1.5) { // Фильтр микрошумов GPS приемника
+                                AppState.metrics.totalDistanceMeters += distance;
+                                // В среднем 1 метр = 1.4 шага
+                                AppState.metrics.steps = Math.floor(AppState.metrics.totalDistanceMeters * 1.4);
+                                document.getElementById('hud-steps').innerText = AppState.metrics.steps;
+                            }
+                        }
+
+                        AppState.metrics.lastLat = lat;
+                        AppState.metrics.lastLng = lng;
+
+                        // Отрисовка синего игрового маркера
                         if (!playerMarker) {
-                            // ОСТАВИЛИ ТОЛЬКО АККУРАТНЫЙ СИНИЙ МАРКЕР КУРСОР, КОНТУР УДАЛЕН
                             playerMarker = L.circleMarker([lat, lng], {
-                                radius: 8,
+                                radius: 9,
                                 color: '#ffffff',
-                                fillColor: '#0066ff',
+                                fillColor: varColor('--accent-blue'),
                                 fillOpacity: 1,
-                                weight: 2
+                                weight: 2.5
                             }).addTo(map);
 
                             map.setView([lat, lng], 17);
                         } else {
                             playerMarker.setLatLng([lat, lng]);
                         }
+
+                        // Пересчитываем локальную игровую сетку секторов вокруг игрока
+                        generateTacticalGrid(lat, lng);
                     },
-                    (error) => { console.error("GPS error:", error); },
-                    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+                    (error) => { 
+                        console.error("GPS Sensor Failure:", error); 
+                        // Если отладка на ПК, генерируем тестовую сетку секторов для Салехарда
+                        generateTacticalGrid(AppState.config.salekhardCenter[0], AppState.config.salekhardCenter[1]);
+                    },
+                    { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 }
                 );
             }
         }
 
+        // Вычисление расстояния по Формуле Гаверсинуса (Кривизна сферы Земли)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Радиус Земли в метрах
+            const rad = Math.PI / 180;
+            const dLat = (lat2 - lat1) * rad;
+            const dLon = (lon2 - lon1) * rad;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1*rad) * Math.cos(lat2*rad) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c; // Дистанция в метрах
+        }
+
+        // ==========================================================================
+        // ПРОЦЕДУРНЫЙ ДВИЖОК СЕТКИ ИГРОВЫХ СЕКТОРОВ
+        // ==========================================================================
+        function generateTacticalGrid(centerLat, centerLng) {
+            if (!gridSectorsLayer) return;
+            gridSectorsLayer.clearLayers();
+
+            const step = AppState.config.gridSizeDegrees;
+            const range = 4; // Радиус отрисовки секторов вокруг игрока (4х4 квадрата)
+
+            // Вычисляем базовую стартовую координату текущего сектора игрока
+            const baseLat = Math.floor(centerLat / step) * step;
+            const baseLng = Math.floor(centerLng / step) * step;
+
+            for (let i = -range; i <= range; i++) {
+                for (let j = -range; j <= range; j++) {
+                    const sLat = baseLat + (i * step);
+                    const sLng = baseLng + (j * step);
+
+                    const bounds = [
+                        [sLat, sLng],
+                        [sLat + step, sLng + step]
+                    ];
+
+                    // Генерация фейкового статуса зоны для альфа-теста интерфейса секторов
+                    // В будущем тут будет сверка с базой данных Render через Socket.io
+                    let zoneColor = '#747d8c'; // Свободная серая зона
+                    let isCaptured = false;
+
+                    const hash = (sLat + sLng).toString();
+                    if (hash.includes('3') || hash.includes('7')) {
+                        zoneColor = varColor('--accent-green'); // Твоя захваченная зеленая зона
+                        isCaptured = true;
+                    } else if (hash.includes('5')) {
+                        zoneColor = varColor('--accent-red'); // Вражеская красная зона
+                    }
+
+                    // Отрисовываем полигон сектора
+                    const polygon = L.rectangle(bounds, {
+                        color: zoneColor,
+                        weight: 1,
+                        fillColor: zoneColor,
+                        fillOpacity: isCaptured ? 0.25 : 0.08,
+                        className: 'tactical-sector'
+                    });
+
+                    // Обработчик тача/клика по сектору для его захвата
+                    polygon.on('click', (e) => {
+                        L.DomEvent.stopPropagation(e);
+                        SoundMatrix.playSuccess();
+                        
+                        // Механика локального захвата кликом
+                        if (polygon.options.color === '#747d8c' || polygon.options.color === varColor('--accent-red')) {
+                            polygon.setStyle({
+                                color: varColor('--accent-green'),
+                                fillColor: varColor('--accent-green'),
+                                fillOpacity: 0.25
+                            });
+                            AppState.metrics.capturedZones++;
+                            document.getElementById('hud-captured').innerText = AppState.metrics.capturedZones;
+                        }
+                    });
+
+                    gridSectorsLayer.addLayer(polygon);
+                }
+            }
+        }
+
+        // Вспомогательный хелпер получения CSS цветов внутри JS контекста
+        function varColor(varName) {
+            return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        }
+
+        // Инициализация при полной загрузке DOM дерева
         document.addEventListener('DOMContentLoaded', () => {
             const savedName = localStorage.getItem('geo_username');
             const savedUID = localStorage.getItem('geo_uid');
 
             if (savedName && savedUID) {
-                currentUsername = savedName;
-                playerUID = savedUID;
+                AppState.username = savedName;
+                AppState.uid = savedUID;
                 bootIntoGame();
             }
         });
