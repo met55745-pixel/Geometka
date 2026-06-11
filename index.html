@@ -42,13 +42,20 @@
             display: none;
         }
 
-        .app-screen.active {
+        /* Разделяем стили активации для экрана логина и карты */
+        #screen-login.active {
             display: flex;
             flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #screen-map.active {
+            display: block;
         }
 
         /* ==========================================================================
-           НОВЫЙ ТАКТИЧЕСКИЙ ФОН (Серый радар / Координатная сетка)
+           ТАКТИЧЕСКИЙ ФОН ЛОГИНА
            ========================================================================== */
         .tactical-grid {
             position: absolute;
@@ -61,7 +68,6 @@
             z-index: 1;
         }
 
-        /* Декоративное перекрестие по центру в стиле прицела навигатора */
         .tactical-grid::before {
             content: '';
             position: absolute;
@@ -73,11 +79,9 @@
         }
 
         /* ==========================================================================
-           МОДУЛЬ 1: МИНИМАЛИСТИЧНЫЙ ВХОД
+           МОДУЛЬ 1: ВХОД
            ========================================================================== */
         #screen-login {
-            align-items: center;
-            justify-content: center;
             z-index: 100;
         }
 
@@ -119,8 +123,19 @@
         /* ==========================================================================
            МОДУЛЬ 2: ИГРОВАЯ КАРТА И ТАКТИЧЕСКИЙ HUD
            ========================================================================== */
-        #screen-map { z-index: 50; background: #000; }
-        #map-container { width: 100vw; height: 100vh; z-index: 10; }
+        #screen-map { 
+            z-index: 50; 
+            background: #000; 
+        }
+        
+        /* Карта теперь жестко прибита на весь экран */
+        #map-container { 
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; 
+            height: 100%; 
+            z-index: 10;
+        }
         
         .hud-top-panel {
             position: absolute;
@@ -158,7 +173,6 @@
             letter-spacing: 0.3px;
             box-shadow: 0 8px 25px rgba(0,0,0,0.5);
             pointer-events: auto;
-            text-transform: lowercase;
         }
 
         .stats-divider {
@@ -172,10 +186,12 @@
             margin-left: 4px;
         }
 
-        /* Стили кнопок масштаба Leaflet под темный UI */
+        /* Кастомизация кнопок зума в правом нижнем углу */
         .leaflet-control-zoom {
             border: 1px solid var(--border) !important;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+            margin-bottom: 25px !important; /* Приподнимаем над системной полоской Android */
+            margin-right: 15px !important;
         }
         .leaflet-control-zoom-in, .leaflet-control-zoom-out {
             background: var(--card-glass) !important;
@@ -183,7 +199,7 @@
             border-bottom: 1px solid var(--border) !important;
         }
         .leaflet-bar a:hover { background: rgba(255,255,255,0.05) !important; }
-        .leaflet-control-attribution { background: transparent !important; color: rgba(255,255,255,0.2) !important; }
+        .leaflet-control-attribution { background: transparent !important; color: rgba(255,255,255,0.1) !important; }
     </style>
 </head>
 <body>
@@ -215,7 +231,6 @@
                 <div>захвачено:<span class="stats-val" id="hud-captured">0%</span></div>
             </div>
         </div>
-        
         <div id="map-container"></div>
     </div>
 
@@ -225,6 +240,7 @@
     <script>
         let currentUsername = null;
         let playerUID = null;
+        
         let map = null;
         let playerMarker = null;
         let playerAccuracyCircle = null;
@@ -258,20 +274,29 @@
         function initGameEngine() {
             console.log(`Инициализация для: ${currentUsername}`);
             
-            // Генерируем аватарку по нику
             document.getElementById('player-avatar').style.backgroundImage = `url('https://api.dicebear.com/7.x/bottts/svg?seed=${currentUsername}')`;
 
-            // Запуск Leaflet на Салехард
             if (!map) {
+                // ВАЖНО: Вырубаем дефолтный зум кнопкой zoomControl: false
                 map = L.map('map-container', {
-                    zoomControl: true,
+                    zoomControl: false,
                     attributionControl: true
                 }).setView([66.5300, 66.6150], 16);
 
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
                     maxZoom: 19
                 }).addTo(map);
+
+                // ВАЖНО: Врубаем кастомный зум строго в правый нижний угол!
+                L.control.zoom({ position: 'bottomright' }).addTo(map);
             }
+
+            // ЖЕСТКИЙ ПРИНУДИТЕЛЬНЫЙ ФИКС РАЗМЕРА ДЛЯ СМАРТФОНОВ
+            setTimeout(() => {
+                if (map) {
+                    map.invalidateSize();
+                }
+            }, 250);
 
             startLocationTracking();
         }
