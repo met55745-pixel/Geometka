@@ -3,23 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>GeoMetka — Enterprise Yandex Engine</title>
+    <title>GeoMetka — Tactical Navigation Engine</title>
     
-    <!-- ЯДРО ЯНДЕКС КАРТ ДЛЯ ВЫСОКИХ РАЗРЕШЕНИЙ -->
+    <!-- КАРТОГРАФИЧЕСКАЯ МАТРИЦА ЯНДЕКСА v2.1 -->
     <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
+    
+    <!-- СЕТЕВОЙ СИНХРОНИЗАТОР SOCKET.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     
     <style>
         :root {
-            --bg-dark: #0a0a0f;
-            --bg-grid: #121218;
-            --card-glass: rgba(20, 20, 26, 0.95);
+            --bg-dark: #07070a;
+            --bg-card: #0e0e13;
+            --card-glass: rgba(14, 14, 19, 0.95);
             --accent-blue: #0066ff;
             --accent-green: #2ecc71;
-            --accent-red: #ff4757; 
+            --accent-red: #ff4757;
+            --accent-purple: #9b59b6;
             --text-main: #ffffff;
-            --text-muted: #747d8c;
-            --border: rgba(255, 255, 255, 0.1);
-            --shadow-neon: rgba(0, 102, 255, 0.3);
+            --text-muted: #6f7985;
+            --border: rgba(255, 255, 255, 0.08);
+            --shadow-neon: rgba(0, 102, 255, 0.25);
         }
 
         * {
@@ -65,8 +69,8 @@
             position: absolute;
             width: 100%; height: 100%;
             background-image: 
-                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+                linear-gradient(rgba(255, 255, 255, 0.01) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.01) 1px, transparent 1px);
             background-size: 30px 30px;
             background-position: center;
             z-index: 1;
@@ -96,7 +100,7 @@
         .brand-header { text-align: center; margin-bottom: 35px; }
         .brand-logo {
             font-size: 30px; font-weight: 900; letter-spacing: 2px;
-            background: linear-gradient(135deg, #fff, var(--text-muted));
+            background: linear-gradient(135deg, #ffffff, var(--text-muted));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
         .brand-tagline { font-size: 11px; color: var(--text-muted); margin-top: 5px; text-transform: uppercase; letter-spacing: 3px; }
@@ -111,7 +115,7 @@
         
         .input-group input:focus ~ label,
         .input-group input:not(:placeholder-shown) ~ label {
-            top: -10px; left: 12px; font-size: 11px; color: #fff; background: #0c0c12; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border);
+            top: -10px; left: 12px; font-size: 11px; color: #fff; background: #0c0c12; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border);
         }
 
         .btn-submit {
@@ -122,7 +126,7 @@
         .btn-submit:active { transform: scale(0.98); }
 
         /* ==========================================================================
-           ИГРОВОЙ HUD (ИНТЕРФЕЙС ИЗ СКЕТЧА)
+           ИГРОВОЙ ТАКТИЧЕСКИЙ HUD (ИНТЕРФЕЙС ИЗ СКЕТЧА)
            ========================================================================== */
         #map-container { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
@@ -138,8 +142,9 @@
             width: 52px; height: 52px; border-radius: 50%;
             border: 2px solid var(--border); background-color: #1a1a24;
             background-size: cover; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-            pointer-events: auto; flex-shrink: 0;
+            pointer-events: auto; flex-shrink: 0; transition: transform 0.2s;
         }
+        .hud-avatar:active { transform: scale(0.92); }
 
         .hud-stats-badge {
             background: var(--card-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
@@ -152,9 +157,55 @@
         .stats-divider { color: rgba(255, 255, 255, 0.15); font-weight: 300; }
         .stats-val { color: var(--accent-blue); font-weight: 800; margin-left: 6px; }
 
-        /* Глушим футер Яндекса, чтобы не перекрывал игровые элементы */
+        /* БОКОВЫЕ КНОПКИ УПРАВЛЕНИЯ */
+        .tactical-controls {
+            position: absolute; top: 90px; left: 20px;
+            display: flex; flex-direction: column; gap: 10px;
+            z-index: 9999;
+        }
+
+        .btn-action {
+            width: 44px; height: 44px; border-radius: 12px;
+            background: var(--card-glass); border: 1px solid var(--border);
+            color: #fff; font-size: 18px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3); backdrop-filter: blur(10px);
+            transition: all 0.2s;
+        }
+        .btn-action:active { transform: scale(0.9); background: rgba(255,255,255,0.1); }
+
+        /* ВЫДВИЖНОЙ РЕЙТИНГ ИГРОКОВ (БОКОВАЯ ПАНЕЛЬ) */
+        .side-panel {
+            position: absolute; top: 0; right: -280px; width: 280px; height: 100vh;
+            background: var(--card-glass); border-left: 1px solid var(--border);
+            z-index: 10000; backdrop-filter: blur(25px); transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 30px 20px; display: flex; flex-direction: column;
+        }
+
+        .side-panel.open { right: 0; }
+        .panel-header { font-size: 18px; font-weight: 800; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
+        .panel-close { cursor: pointer; color: var(--text-muted); font-size: 20px; }
+        
+        .leaderboard-list { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex-grow: 1; }
+        .leader-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px;
+        }
+        .leader-name { font-weight: 600; font-size: 14px; }
+        .leader-score { font-weight: 800; color: var(--accent-green); font-size: 13px; }
+
+        /* УВЕДОМЛЕНИЯ ИНТЕРФЕЙСА */
+        .notify-toast {
+            position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
+            background: rgba(10,10,15,0.9); border: 1px solid var(--border);
+            padding: 12px 24px; border-radius: 30px; font-size: 13px; font-weight: 600;
+            z-index: 9999; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: none; align-items: center; gap: 8px; letter-spacing: 0.3px;
+        }
+
+        /* Настройка элементов Яндекса */
         .ymaps-2-1-79-controls__bottom { display: none !important; }
-        .ymaps-2-1-79-copyright { background: rgba(255,255,255,0.6) !important; border-radius: 4px; padding: 0 4px; }
+        .ymaps-2-1-79-copyright { background: rgba(10,10,15,0.7) !important; border-radius: 4px; padding: 0 4px; color: rgba(255,255,255,0.4) !important; }
 
         @keyframes radarPulse {
             0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
@@ -164,972 +215,631 @@
 </head>
 <body>
 
-    <!-- СЦЕНА 1: ЛОГИН -->
+    <!-- ЭКРАН 1: АВТОРИЗАЦИЯ -->
     <div id="screen-login" class="app-screen active">
         <div class="tactical-grid"></div>
         <div class="login-container">
             <div class="brand-header">
                 <h1 class="brand-logo">GEOMETKA</h1>
-                <p class="brand-tagline">Яндекс Навигация</p>
+                <p class="brand-tagline">Синхронизация Спутников</p>
             </div>
 
-            <form id="loginForm" onsubmit="handleLocalLogin(event)">
+            <form id="loginForm" onsubmit="TacticalEngine.Auth.handleLogin(event)">
                 <div class="input-group">
                     <input type="text" id="username" placeholder=" " required autocomplete="off">
-                    <label for="username">Твой уникальный ник</label>
+                    <label for="username">Введи позывной</label>
                 </div>
-                <button type="submit" class="btn-submit">ЗАПУСК ENGINE</button>
+                <button type="submit" class="btn-submit">ЗАПУСК СИСТЕМЫ</button>
             </form>
         </div>
     </div>
 
-    <!-- СЦЕНА 2: КАРТА -->
+    <!-- ЭКРАН 2: ТАКТИЧЕСКОЕ ИГРОВОЕ ПОЛЕ -->
     <div id="screen-map" class="app-screen">
+        
+        <!-- ТВОЙ HUD -->
         <div class="hud-top-panel">
-            <div class="hud-avatar" id="player-avatar" onclick="SoundMatrix.playClick()"></div>
+            <div class="hud-avatar" id="player-avatar" onclick="TacticalEngine.UI.toggleLeaderboard(true)"></div>
             <div class="hud-stats-badge">
-                <div>шаги:<span class="stats-val" id="hud-steps">0</span></div>
+                <div>позывной:<span class="stats-val" id="hud-username">...</span></div>
                 <div class="stats-divider">|</div>
                 <div>сектора:<span class="stats-val" id="hud-captured">0</span></div>
             </div>
         </div>
+
+        <!-- ТАКТИЧЕСКИЙ ОВЕРЛЕЙ УПРАВЛЕНИЯ -->
+        <div class="tactical-controls">
+            <button class="btn-action" title="Таблица Лидеров" onclick="TacticalEngine.UI.toggleLeaderboard(true)">🏆</button>
+            <button class="btn-action" title="Сменить тип карты" onclick="TacticalEngine.MapCore.cycleMapType()">🗺️</button>
+            <button class="btn-action" id="btn-audio-toggle" title="Звук" onclick="TacticalEngine.Audio.toggleSound()">🔊</button>
+        </div>
+
+        <!-- СИСТЕМНЫЕ ОПОВЕЩЕНИЯ -->
+        <div class="notify-toast" id="server-notification">
+            🌐 <span id="notification-text">Запуск тактических протоколов...</span>
+        </div>
+
+        <!-- БОКОВАЯ ТАКТИЧЕСКАЯ ПАНЕЛЬ ЛИДЕРОВ -->
+        <div class="side-panel" id="leaderboard-panel">
+            <div class="panel-header">
+                <span>Рейтинг Контроля</span>
+                <span class="panel-close" onclick="TacticalEngine.UI.toggleLeaderboard(false)">✕</span>
+            </div>
+            <div class="leaderboard-list" id="leaderboard-content">
+                <div style="color: var(--text-muted); text-align: center; margin-top: 20px;">Загрузка матрицы...</div>
+            </div>
+        </div>
+
+        <!-- КАРТА ЯНДЕКСА -->
         <div id="map-container"></div>
     </div>
 
     <script>
         // ==========================================================================
-        // ЯДРО СТРУКТУРЫ ДАННЫХ ИГРЫ
+        // МОНОЛИТНЫЙ ИГРОВОЙ ДВИЖОК GEOMETKA (TACTICAL ARCHITECTURE ENGINE)
         // ==========================================================================
-        const AppState = {
-            username: null,
-            uid: null,
-            metrics: {
-                steps: 0,
-                capturedZones: 0,
-                totalDistanceMeters: 0,
-                lastLat: null,
-                lastLng: null
-            },
-            config: {
-                gridSizeDegrees: 0.0012, // Размер квадрата сектора
-                salekhardCenter: [66.5300, 66.6150] // Координаты Салехарда
-            }
-        };
+        const TacticalEngine = (function () {
+            'use strict';
 
-        // ==========================================================================
-        // СИНТЕЗАТОР НЕОНОВЫХ ЗВУКОВ ИНТЕРФЕЙСА (WEB AUDIO API)
-        // ==========================================================================
-        const SoundMatrix = {
-            ctx: null,
-            init() { 
-                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); 
-            },
-            playClick() {
-                this.init();
-                let osc = this.ctx.createOscillator(); 
-                let gain = this.ctx.createGain();
-                osc.type = 'sine'; 
-                osc.frequency.setValueAtTime(880, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(440, this.ctx.currentTime + 0.08);
-                gain.gain.setValueAtTime(0.08, this.ctx.currentTime); 
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
-                osc.connect(gain); gain.connect(this.ctx.destination); 
-                osc.start(); osc.stop(this.ctx.currentTime + 0.08);
-            },
-            playSuccess() {
-                this.init();
-                let osc = this.ctx.createOscillator(); 
-                let gain = this.ctx.createGain();
-                osc.type = 'triangle'; 
-                osc.frequency.setValueAtTime(587.33, this.ctx.currentTime);
-                osc.frequency.setValueAtTime(880, this.ctx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0.12, this.ctx.currentTime); 
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
-                osc.connect(gain); gain.connect(this.ctx.destination); 
-                osc.start(); osc.stop(this.ctx.currentTime + 0.25);
-            }
-        };
+            // Глобальное состояние игры
+            const State = {
+                username: null,
+                uid: null,
+                socket: null,
+                isAudioActive: false,
+                isMuted: false,
+                isTracking: false,
+                gpsWatchId: null,
+                
+                // Переменные карт Яндекс
+                yandexMap: null,
+                sectorsLayer: null,
+                playersLayer: null,
+                playerMarker: null,
 
-        // ==========================================================================
-        // КАРТОГРАФИЧЕСКИЙ ДВИЖОК ЯНДЕКСА
-        // ==========================================================================
-        let map = null;
-        let playerMarker = null;
-        let gridCollection = null;
+                // Хранение слоев для смены
+                mapTypes: ['yandex#map', 'yandex#satellite', 'yandex#hybrid'],
+                currentMapTypeIdx: 0,
 
-        function switchScreen(screenId) {
-            document.querySelectorAll('.app-screen').forEach(screen => screen.classList.remove('active'));
-            document.getElementById(screenId).classList.add('active');
-        }
+                // Кэш и Офлайн-буфер
+                cachedSectors: {}, 
+                renderedSectors: {},   
+                offlineQueue: [],   
+                
+                telemetry: {
+                    capturedCount: 0,
+                    lastLat: null,
+                    lastLng: null
+                },
 
-        function handleLocalLogin(event) {
-            event.preventDefault();
-            const username = document.getElementById('username').value.trim();
-            if (username) {
-                SoundMatrix.playSuccess();
-                savePlayerSession(username, 'USER_' + username);
-                bootIntoGame();
-            }
-        }
+                config: {
+                    serverUrl: "https://pixselbatll.onrender.com",
+                    gridSizeDegrees: 0.0010, // Шаг сетки (~100 метров)
+                    salekhardCenter: [66.5300, 66.6150]
+                }
+            };
 
-        function savePlayerSession(name, uid) {
-            localStorage.setItem('geo_username', name);
-            localStorage.setItem('geo_uid', uid);
-            AppState.username = name; 
-            AppState.uid = uid;
-        }
+            // ==========================================================================
+            // ЗВУКОВОЙ СИНТЕЗАТОР (WEB AUDIO API ENGINE)
+            // ==========================================================================
+            const AudioEngine = {
+                ctx: null,
 
-        function bootIntoGame() {
-            switchScreen('screen-map');
-            // Принудительное ожидание готовности серверов Яндекса
-            ymaps.ready(initGameEngine);
-        }
+                init() {
+                    if (State.isAudioActive) return;
+                    try {
+                        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                        State.isAudioActive = true;
+                        console.log("[Audio] Аудио-протоколы активированы.");
+                    } catch (err) {
+                        console.error("[Audio] Ошибка Web Audio Context:", err);
+                    }
+                },
 
-        function initGameEngine() {
-            console.log("Запуск Яндекс Картографии...");
-            document.getElementById('player-avatar').style.backgroundImage = `url('https://api.dicebear.com/7.x/bottts/svg?seed=${AppState.username}')`;
+                toggleSound() {
+                    State.isMuted = !State.isMuted;
+                    document.getElementById('btn-audio-toggle').innerText = State.isMuted ? "🔇" : "🔊";
+                    this.playClick();
+                },
 
-            if (!map) {
-                // Инициализация карты Яндекса
-                map = new ymaps.Map("map-container", {
-                    center: AppState.config.salekhardCenter,
-                    zoom: 16,
-                    controls: ['zoomControl'] 
-                }, {
-                    // Тонкая настройка жестов, инерции и фикса кнопок зума под пальцы
-                    zoomControlPosition: { right: 20, bottom: 50 },
-                    suppressMapOpenBlock: true,
-                    yandexMapAutoInvert: false
-                });
-
-                // Создаем контейнер для полигонов сетки
-                gridCollection = new ymaps.GeoObjectCollection();
-                map.geoObjects.add(gridCollection);
-
-                // Вешаем звук клика на карту
-                map.events.add('click', () => SoundMatrix.playClick());
-            }
-
-            startLocationTracking();
-        }
-
-        // ==========================================================================
-        // GPS МОДУЛЬ И МАТЕМАТИКА ДВИЖЕНИЯ (HAVERSINE ALGORITHM)
-        // ==========================================================================
-        function startLocationTracking() {
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(
-                    (position) => {
-                        const lat = position.coords.latitude;
-                        const lng = position.coords.longitude;
-
-                        // Считаем шаги по расстоянию между точками GPS
-                        if (AppState.metrics.lastLat !== null && AppState.metrics.lastLng !== null) {
-                            const distance = calculateDistance(AppState.metrics.lastLat, AppState.metrics.lastLng, lat, lng);
-                            if (distance > 1.8) { // Фильтруем погрешности датчика
-                                AppState.metrics.totalDistanceMeters += distance;
-                                AppState.metrics.steps = Math.floor(AppState.metrics.totalDistanceMeters * 1.4);
-                                document.getElementById('hud-steps').innerText = AppState.metrics.steps;
-                            }
+                playTone(frequency, type, duration, volume, frequencyRamp = 0) {
+                    if (State.isMuted || !State.isAudioActive) return;
+                    try {
+                        this.init();
+                        const now = this.ctx.currentTime;
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        
+                        osc.type = type;
+                        osc.frequency.setValueAtTime(frequency, now);
+                        
+                        if (frequencyRamp > 0) {
+                            osc.frequency.exponentialRampToValueAtTime(frequencyRamp, now + duration);
                         }
+                        
+                        gain.gain.setValueAtTime(volume, now);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+                        
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        
+                        osc.start(now);
+                        osc.stop(now + duration);
+                    } catch (e) {
+                        console.error("[Audio] Сбой генерации волны:", e);
+                    }
+                },
 
-                        AppState.metrics.lastLat = lat; 
-                        AppState.metrics.lastLng = lng;
+                playClick() {
+                    this.playTone(800, 'sine', 0.05, 0.05, 300);
+                },
 
-                        // Четкая точка игрока без громоздких кругов
-                        if (!playerMarker) {
-                            playerMarker = new ymaps.Placemark([lat, lng], {}, {
-                                preset: 'islands#blueCircleDotIcon',
-                                iconColor: '#0066ff'
-                            });
-                            map.geoObjects.add(playerMarker);
-                            map.setCenter([lat, lng], 17);
-                        } else {
-                            playerMarker.geometry.setCoordinates([lat, lng]);
-                        }
+                playCapture() {
+                    this.init();
+                    const now = this.ctx.currentTime;
+                    setTimeout(() => this.playTone(523.25, 'sine', 0.08, 0.05), 0);
+                    setTimeout(() => this.playTone(659.25, 'sine', 0.08, 0.05), 50);
+                    setTimeout(() => this.playTone(880.00, 'sine', 0.12, 0.07), 100);
+                },
 
-                        // Перегенерация тактической сетки
-                        generateTacticalGrid(lat, lng);
-                    },
-                    (error) => {
-                        console.error("GPS Sensor Offline:", error);
-                        // Тестовая генерация сетки на ПК в Салехарде при отсутствии GPS
-                        generateTacticalGrid(AppState.config.salekhardCenter[0], AppState.config.salekhardCenter[1]);
-                    },
-                    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-                );
-            }
-        }
+                playError() {
+                    this.playTone(180, 'triangle', 0.3, 0.07, 90);
+                }
+            };
 
-        // Математическая формула Гаверсинуса для вычисления метров на сфере Земли
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; 
-            const rad = Math.PI / 180;
-            const dLat = (lat2 - lat1) * rad; 
-            const dLon = (lon2 - lon1) * rad;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1*rad) * Math.cos(lat2*rad) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-        }
-
-        // ==========================================================================
-        // ПРОЦЕДУРНЫЙ ГЕНЕРАТОР КВАДРАТОВ ЗАХВАТА СЕКТОРОВ
-        // ==========================================================================
-        function generateTacticalGrid(centerLat, centerLng) {
-            if (!gridCollection) return;
-            gridCollection.removeAll(); // Очищаем старые зоны, чтобы не грузить ОЗУ смартфона
-
-            const step = AppState.config.gridSizeDegrees;
-            const range = 3; // Радиус видимости квадратов вокруг игрока
-
-            const baseLat = Math.floor(centerLat / step) * step;
-            const baseLng = Math.floor(centerLng / step) * step;
-
-            for (let i = -range; i <= range; i++) {
-                for (let j = -range; j <= range; j++) {
-                    const sLat = baseLat + (i * step);
-                    const sLng = baseLng + (j * step);
-
-                    const bounds = [
-                        [sLat, sLng],
-                        [sLat + step, sLng + step]
-                    ];
-
-                    // Распределяем тестовые статусы зон по хэшу координат
-                    let zoneColor = '#747d8c'; 
-                    let isCaptured = false;
-
-                    const hash = (sLat + sLng).toString();
-                    if (hash.includes('2') || hash.includes('6')) {
-                        zoneColor = '#2ecc71'; // Твой захваченный зеленый сектор
-                        isCaptured = true;
-                    } else if (hash.includes('4')) {
-                        zoneColor = '#ff4757'; // Вражеский красный сектор
+            // ==========================================================================
+            // МЕНЕДЖЕР СЕТИ И СИНХРОНИЗАЦИИ (SOCKET.IO)
+            // ==========================================================================
+            const NetworkModule = {
+                connect() {
+                    console.log("[Network] Запуск сокетов...");
+                    if (typeof io === 'undefined') {
+                        console.error("[Network] Socket.io не подключен!");
+                        UIModule.displayToast("Ошибка ядра сети");
+                        return;
                     }
 
-                    // Отрисовка прямоугольника Яндекса
-                    const rectangle = new ymaps.Rectangle(bounds, {}, {
-                        fillColor: zoneColor,
-                        fillOpacity: isCaptured ? 0.25 : 0.06,
-                        strokeColor: zoneColor,
-                        strokeWidth: 1,
-                        strokeOpacity: 0.3
+                    State.socket = io(State.config.serverUrl, {
+                        transports: ['websocket'],
+                        reconnection: true,
+                        reconnectionAttempts: 10,
+                        reconnectionDelay: 3000
                     });
 
-                    // Клик по сектору — фиксация и захват территории
-                    rectangle.events.add('click', (e) => {
-                        SoundMatrix.playSuccess();
-                        rectangle.options.set({
-                            fillColor: '#2ecc71',
-                            strokeColor: '#2ecc71',
-                            fillOpacity: 0.25
+                    this.setupEvents();
+                },
+
+                registerLocalPlayer() {
+                    if (State.socket && State.socket.connected) {
+                        State.socket.emit('init_player', {
+                            uid: State.uid,
+                            name: State.username,
+                            coords: State.config.salekhardCenter
                         });
-                        AppState.metrics.capturedZones++;
-                        document.getElementById('hud-captured').innerText = AppState.metrics.capturedZones;
+                    }
+                },
+
+                setupEvents() {
+                    State.socket.on('connect', () => {
+                        console.log("[Network] Канал сокетов открыт.");
+                        UIModule.displayToast("Связь с сервером установлена");
+                        this.registerLocalPlayer();
+                        this.flushOfflineBuffer();
                     });
 
-                    gridCollection.add(rectangle);
-                }
-            }
-        }
+                    State.socket.on('sync_sectors', (globalSectorsMap) => {
+                        State.cachedSectors = globalSectorsMap;
+                        if (State.telemetry.lastLat) {
+                            GridModule.renderRadialGrid(State.telemetry.lastLat, State.telemetry.lastLng);
+                        }
+                    });
 
-        // Автоматический вход по токену памяти
+                    State.socket.on('update_players', (activePlayersPayload) => {
+                        this.syncOnlinePlayersOnMap(activePlayersPayload);
+                    });
+
+                    State.socket.on('leaderboard_update', (leaderboardArray) => {
+                        UIModule.rebuildLeaderboardDOM(leaderboardArray);
+                    });
+
+                    State.socket.on('disconnect', () => {
+                        AudioEngine.playError();
+                        UIModule.displayToast("Офлайн режим. Сохраняем зоны локально");
+                    });
+                },
+
+                sendCoordinates(lat, lng) {
+                    if (State.socket && State.socket.connected) {
+                        State.socket.emit('player_move', {
+                            uid: State.uid,
+                            coords: [lat, lng]
+                        });
+                    }
+                },
+
+                pushCapture(sectorId, bounds) {
+                    const capturePacket = {
+                        uid: State.uid,
+                        username: State.username,
+                        sectorId: sectorId,
+                        bounds: bounds,
+                        timestamp: Date.now()
+                    };
+
+                    if (State.socket && State.socket.connected) {
+                        State.socket.emit('capture_sector', capturePacket);
+                    } else {
+                        State.offlineQueue.push(capturePacket);
+                        this.saveOfflineBuffer();
+                    }
+                },
+
+                syncOnlinePlayersOnMap(players) {
+                    if (!State.playersLayer) return;
+                    State.playersLayer.removeAll();
+
+                    Object.keys(players).forEach(playerUid => {
+                        if (playerUid === State.uid) return;
+
+                        const playerInfo = players[playerUid];
+                        if (!playerInfo.coords) return;
+
+                        const remoteMarker = new ymaps.Placemark(playerInfo.coords, {
+                            hintContent: `Игрок: ${playerInfo.name}`,
+                            iconContent: playerInfo.name.substring(0, 2).toUpperCase()
+                        }, {
+                            preset: 'islands#violetCircleIcon',
+                            iconColor: '#9b59b6',
+                            zIndex: 500
+                        });
+
+                        State.playersLayer.add(remoteMarker);
+                    });
+                },
+
+                saveOfflineBuffer() {
+                    localStorage.setItem('geo_offline_queue', JSON.stringify(State.offlineQueue));
+                },
+
+                flushOfflineBuffer() {
+                    const stored = localStorage.getItem('geo_offline_queue');
+                    if (stored) {
+                        State.offlineQueue = JSON.parse(stored);
+                    }
+                    if (State.offlineQueue.length === 0) return;
+
+                    UIModule.displayToast(`Синхронизация офлайн зон: ${State.offlineQueue.length}`);
+                    while (State.offlineQueue.length > 0) {
+                        const queued = State.offlineQueue.shift();
+                        if (State.socket && State.socket.connected) {
+                            State.socket.emit('capture_sector', queued);
+                        }
+                    }
+                    localStorage.removeItem('geo_offline_queue');
+                    AudioEngine.playCapture();
+                }
+            };
+
+            // ==========================================================================
+            // ДВИЖОК СЕТКИ (БЕСШОВНАЯ РАДИАЛЬНАЯ СЕТКА БЕЗ СУХИХ ГРАНИЦ)
+            // ==========================================================================
+            const GridModule = {
+                renderRadialGrid(centerLat, centerLng) {
+                    if (!State.sectorsLayer || !State.yandexMap) return;
+
+                    const step = State.config.gridSizeDegrees;
+                    const renderRadius = 5; // Покрытие экрана устройства
+
+                    const targetLatIndex = Math.floor(centerLat / step);
+                    const targetLngIndex = Math.floor(centerLng / step);
+
+                    const activeKeys = new Set();
+
+                    for (let i = -renderRadius; i <= renderRadius; i++) {
+                        for (let j = -renderRadius; j <= renderRadius; j++) {
+                            const currentLatIndex = targetLatIndex + i;
+                            const currentLngIndex = targetLngIndex + j;
+
+                            const sectorId = `sector_${currentLatIndex}_${currentLngIndex}`;
+                            activeKeys.add(sectorId);
+
+                            const sLat = currentLatIndex * step;
+                            const sLng = currentLngIndex * step;
+
+                            const bounds = [
+                                [sLat, sLng],
+                                [sLat + step, sLng + step]
+                            ];
+
+                            // Дистанция до центра радара для плавного альфа-растворения
+                            const distance = Math.sqrt(i * i + j * j);
+                            if (distance > renderRadius) continue;
+
+                            const radialFactor = Math.max(0, 1 - (distance / renderRadius));
+
+                            let color = '#2c3e50'; 
+                            let baseOpacity = 0.08;
+                            let isMine = false;
+
+                            const serverRecord = State.cachedSectors[sectorId];
+                            if (serverRecord) {
+                                if (serverRecord.ownerUid === State.uid) {
+                                    color = '#2ecc71'; 
+                                    baseOpacity = 0.35;
+                                    isMine = true;
+                                } else {
+                                    color = '#ff4757'; 
+                                    baseOpacity = 0.30;
+                                }
+                            }
+
+                            const finalOpacity = baseOpacity * radialFactor;
+
+                            // 🚨 АВТО-ЗАХВАТ ДЛЯ МАШИН: Захват при попадании в текущий центральный сектор
+                            if (i === 0 && j === 0 && !isMine) {
+                                color = '#2ecc71';
+                                isMine = true;
+
+                                AudioEngine.playCapture();
+
+                                State.cachedSectors[sectorId] = {
+                                    ownerUid: State.uid,
+                                    ownerName: State.username
+                                };
+
+                                State.telemetry.capturedCount++;
+                                document.getElementById('hud-captured').innerText = State.telemetry.capturedCount;
+
+                                NetworkModule.pushCapture(sectorId, bounds);
+                            }
+
+                            // Память и кэш полигонов
+                            const cached = State.renderedSectors[sectorId];
+                            if (cached) {
+                                if (cached.color === color && Math.abs(cached.opacity - finalOpacity) < 0.02) {
+                                    continue;
+                                } else {
+                                    State.sectorsLayer.remove(cached.instance);
+                                    delete State.renderedSectors[sectorId];
+                                }
+                            }
+
+                            // Создаем абсолютно бесшовный прямоугольник без черных рамок (stroke: false)
+                            const rectangle = new ymaps.Rectangle(bounds, {}, {
+                                fillColor: color,
+                                fillOpacity: finalOpacity,
+                                stroke: false, // ГИГАНТСКИЙ КВАДРАТ ИСЧЕЗ! Границы невидимы!
+                                interactive: true
+                            });
+
+                            // Захват тапом по экрану
+                            rectangle.events.add('click', (e) => {
+                                e.stopPropagation();
+                                if (color !== '#2ecc71') {
+                                    AudioEngine.playCapture();
+                                    rectangle.options.set({ fillColor: '#2ecc71', fillOpacity: 0.35 });
+                                    State.cachedSectors[sectorId] = { ownerUid: State.uid, ownerName: State.username };
+                                    State.telemetry.capturedCount++;
+                                    document.getElementById('hud-captured').innerText = State.telemetry.capturedCount;
+                                    NetworkModule.pushCapture(sectorId, bounds);
+                                }
+                            });
+
+                            State.sectorsLayer.add(rectangle);
+                            State.renderedSectors[sectorId] = {
+                                color: color,
+                                opacity: finalOpacity,
+                                instance: rectangle
+                            };
+                        }
+                    }
+
+                    // Чистим старые сектора вне зоны видимости
+                    Object.keys(State.renderedSectors).forEach(key => {
+                        if (!activeKeys.has(key)) {
+                            State.sectorsLayer.remove(State.renderedSectors[key].instance);
+                            delete State.renderedSectors[key];
+                        }
+                    });
+                }
+            };
+
+            // ==========================================================================
+            // СЛУЖБА GPS-ПОЗИЦИОНИРОВАНИЯ (БЕЗ ОГРАНИЧЕНИЙ СКОРОСТИ)
+            // ==========================================================================
+            const GPSModule = {
+                start() {
+                    if (State.isTracking) return;
+                    State.isTracking = true;
+
+                    State.gpsWatchId = navigator.geolocation.watchPosition(
+                        this.onCoordsUpdate.bind(this),
+                        this.onSensorError.bind(this),
+                        {
+                            enableHighAccuracy: true,
+                            maximumAge: 0,
+                            timeout: 10000
+                        }
+                    );
+                },
+
+                onCoordsUpdate(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    State.telemetry.lastLat = lat;
+                    State.telemetry.lastLng = lng;
+
+                    this.updatePlayerMarker(lat, lng);
+                    NetworkModule.sendCoordinates(lat, lng);
+                    GridModule.renderRadialGrid(lat, lng);
+                },
+
+                onSensorError() {
+                    console.warn("[GPS] Спутник не найден. Эмулируем Салехард...");
+                    if (State.telemetry.lastLat === null) {
+                        this.updatePlayerMarker(State.config.salekhardCenter[0], State.config.salekhardCenter[1]);
+                        GridModule.renderRadialGrid(State.config.salekhardCenter[0], State.config.salekhardCenter[1]);
+                    }
+                },
+
+                updatePlayerMarker(lat, lng) {
+                    if (!State.yandexMap) return;
+
+                    if (!State.playerMarker) {
+                        State.playerMarker = new ymaps.Placemark([lat, lng], {}, {
+                            preset: 'islands#blueCircleDotIcon', // Красивая синяя точка без лишних контуров
+                            iconColor: '#0066ff',
+                            zIndex: 999
+                        });
+                        State.yandexMap.geoObjects.add(State.playerMarker);
+                        State.yandexMap.setCenter([lat, lng], 16, { duration: 300 });
+                    } else {
+                        State.playerMarker.geometry.setCoordinates([lat, lng]);
+                    }
+                }
+            };
+
+            // ==========================================================================
+            // ИНТЕРФЕЙСНЫЙ МОДУЛЬ (DOM LAYER)
+            // ==========================================================================
+            const UIModule = {
+                displayToast(message) {
+                    const toast = document.getElementById('server-notification');
+                    const text = document.getElementById('notification-text');
+                    if (!toast || !text) return;
+
+                    text.innerText = message;
+                    toast.style.display = 'flex';
+                    
+                    if (toast.timeoutId) clearTimeout(toast.timeoutId);
+                    toast.timeoutId = setTimeout(() => { toast.style.display = 'none'; }, 3500);
+                },
+
+                rebuildLeaderboardDOM(leaderboardData) {
+                    const container = document.getElementById('leaderboard-content');
+                    if (!container) return;
+
+                    if (!leaderboardData || leaderboardData.length === 0) {
+                        container.innerHTML = `<div style="color: var(--text-muted); text-align: center; margin-top: 20px;">Нет данных</div>`;
+                        return;
+                    }
+
+                    container.innerHTML = leaderboardData.map((row, index) => {
+                        const isMe = (row.name.toLowerCase() === State.username.toLowerCase());
+                        const highlightedStyle = isMe ? 'style="border-color: var(--accent-blue); background: rgba(0,102,255,0.04);"' : '';
+                        
+                        return `
+                            <div class="leader-item" ${highlightedStyle}>
+                                <span class="leader-name" style="${isMe ? 'color: var(--accent-blue); font-weight: 800;' : ''}">
+                                    ${index + 1}. ${row.name} ${isMe ? '(Ты)' : ''}
+                                </span>
+                                <span class="leader-score">${row.sectors || 0} зн.</span>
+                            </div>
+                        `;
+                    }).join('');
+                },
+
+                toggleLeaderboard(shouldOpen) {
+                    AudioEngine.playClick();
+                    const panel = document.getElementById('leaderboard-panel');
+                    if (!panel) return;
+                    if (shouldOpen) panel.classList.add('open');
+                    else panel.classList.remove('open');
+                }
+            };
+
+            // ==========================================================================
+            // МОДУЛЬ АВТОРИЗАЦИИ (SESSION LAYER)
+            // ==========================================================================
+            const AuthModule = {
+                handleLogin(event) {
+                    event.preventDefault();
+                    const name = document.getElementById('username').value.trim();
+                    if (name.length < 2) return;
+
+                    AudioEngine.playCapture();
+                    localStorage.setItem('geo_username', name);
+                    localStorage.setItem('geo_uid', 'USER_' + name.toLowerCase() + '_' + Math.floor(Math.random() * 10000));
+                    this.loadSession();
+                },
+
+                loadSession() {
+                    const name = localStorage.getItem('geo_username');
+                    const uid = localStorage.getItem('geo_uid');
+
+                    if (name && uid) {
+                        State.username = name;
+                        State.uid = uid;
+                        
+                        document.getElementById('hud-username').innerText = name;
+
+                        switchScreen('screen-map');
+                        ymaps.ready(() => TacticalEngine.MapCore.initEngine());
+                    }
+                }
+            };
+
+            return {
+                Auth: {
+                    handleLogin(e) { AuthModule.handleLogin(e); },
+                    loadSession() { AuthModule.loadSession(); }
+                },
+                UI: {
+                    toggleLeaderboard(status) { UIModule.toggleLeaderboard(status); }
+                },
+                Audio: {
+                    toggleSound() { AudioEngine.toggleSound(); },
+                    playClick() { AudioEngine.playClick(); }
+                },
+                MapCore: {
+                    initEngine() {
+                        if (!State.yandexMap) {
+                            State.yandexMap = new ymaps.Map("map-container", {
+                                center: State.config.salekhardCenter,
+                                zoom: 16,
+                                controls: ['zoomControl']
+                            }, {
+                                zoomControlPosition: { right: 20, bottom: 60 },
+                                suppressMapOpenBlock: true,
+                                yandexMapAutoInvert: false
+                            });
+
+                            State.sectorsLayer = new ymaps.GeoObjectCollection();
+                            State.playersLayer = new ymaps.GeoObjectCollection();
+
+                            State.yandexMap.geoObjects.add(State.sectorsLayer);
+                            State.yandexMap.geoObjects.add(State.playersLayer);
+
+                            State.yandexMap.events.add('click', () => AudioEngine.playClick());
+                        }
+
+                        NetworkModule.connect();
+                        GPSModule.start();
+                    },
+
+                    cycleMapType() {
+                        AudioEngine.playClick();
+                        if (!State.yandexMap) return;
+
+                        State.currentMapTypeIdx = (State.currentMapTypeIdx + 1) % State.mapTypes.length;
+                        const newType = State.mapTypes[State.currentMapTypeIdx];
+                        State.yandexMap.setType(newType);
+
+                        let typeName = "Схема";
+                        if (newType.includes('satellite')) typeName = "Спутник";
+                        if (newType.includes('hybrid')) typeName = "Гибрид";
+                        UIModule.displayToast(`Тип карты: ${typeName}`);
+                    }
+                }
+            };
+
+        })();
+
+        // Инициализация при полной загрузке
         document.addEventListener('DOMContentLoaded', () => {
-            const savedName = localStorage.getItem('geo_username');
-            const savedUID = localStorage.getItem('geo_uid');
-            if (savedName && savedUID) {
-                AppState.username = savedName; 
-                AppState.uid = savedUID;
-                bootIntoGame();
-            }
+            TacticalEngine.Auth.loadSession();
         });
     </script>
 </body>
 </html>
-/**
- * ==========================================================================
- * GEOMETKA — CORE LOGIC ENGINE (MODULE 3)
- * ==========================================================================
- * Архитектурный монолит игрового процесса, сетевой синхронизации,
- * обработки гео-сенсоров, античита и звукового синтеза.
- * * Встраивается в глобальную область видимости как синглтон CoreEngine.
- */
-
-window.CoreEngine = (function () {
-    'use strict';
-
-    // ==========================================================================
-    // INNER STATE MANAGEMENT (ВНУТРЕННЕЕ СОСТОЯНИЕ МОДУЛЯ)
-    // ==========================================================================
-    const State = {
-        username: null,
-        uid: null,
-        socket: null,
-        isAudioInitialized: false,
-        isMuted: false,
-        isTrackingActive: false,
-        gpsWatchId: null,
-        
-        // Переменные картографических слоев Яндекса
-        yandexMapInstance: null,
-        gridObjectCollection: null,
-        playersObjectCollection: null,
-        localPlayerPlacemark: null,
-
-        // Буферы хранения игровых данных
-        cachedSectorsRegistry: {}, // Глобальная карта секторов от сервера
-        renderedSectorsPool: {},   // Сектора, которые физически отрисованы на экране
-        offlineCaptureQueue: [],   // Очередь секторов, захваченных в офлайне
-        
-        // Телеметрия и игровые метрики
-        telemetry: {
-            currentSteps: 0,
-            capturedCount: 0,
-            accumulatedDistanceMeters: 0,
-            lastValidLatitude: null,
-            lastValidLongitude: null,
-            lastTrackTimestamp: 0
-        },
-
-        // Конфигурационные константы ядра
-        config: {
-            serverEndpoint: "https://pixselbatll.onrender.com",
-            gridResolutionDegrees: 0.0012, // Физический размер сектора (~120м в Салехарде)
-            salekhardDefaultCenter: [66.5300, 66.6150],
-            antiCheatMaxSpeedMps: 4.5,     // Максимальная скорость бега (~16 км/ч)
-            gpsMinAccuracyThresholdMeters: 45 // Отсеивать вышки сотовой связи с плохой точностью
-        }
-    };
-
-    // ==========================================================================
-    // HARDWARE AUDIO SYNTHESIZER (СИНТЕЗАТОР ЗВУКА НА WEB AUDIO API)
-    // ==========================================================================
-    const AudioSynth = {
-        audioCtx: null,
-
-        init() {
-            if (State.isAudioInitialized) return;
-            try {
-                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                State.isAudioInitialized = true;
-                console.log("[Audio] Звуковая матрица успешно инициализирована.");
-            } catch (error) {
-                console.error("[Audio] Ошибка запуска Web Audio API:", error);
-            }
-        },
-
-        playTone(frequency, type, duration, volume, frequencyRamp = 0) {
-            if (State.isMuted || !State.isAudioInitialized) return;
-            try {
-                this.init();
-                const now = this.audioCtx.currentTime;
-                
-                const oscillator = this.audioCtx.createOscillator();
-                const gainNode = this.audioCtx.createGain();
-                
-                oscillator.type = type;
-                oscillator.frequency.setValueAtTime(frequency, now);
-                
-                if (frequencyRamp > 0) {
-                    oscillator.frequency.exponentialRampToValueAtTime(frequencyRamp, now + duration);
-                }
-                
-                gainNode.gain.setValueAtTime(volume, now);
-                gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(this.audioCtx.destination);
-                
-                oscillator.start(now);
-                oscillator.stop(now + duration);
-            } catch (err) {
-                console.error("[Audio] Сбой генерации звукового тона:", err);
-            }
-        },
-
-        playInterfaceClick() {
-            this.playTone(600, 'sine', 0.05, 0.07, 200);
-        },
-
-        playCaptureSuccess() {
-            if (State.isMuted) return;
-            this.init();
-            const now = this.audioCtx.currentTime;
-            // Проигрываем мажорный кибер-арпеджио аккорд
-            setTimeout(() => this.playTone(523.25, 'triangle', 0.1, 0.08), 0);
-            setTimeout(() => this.playTone(659.25, 'triangle', 0.1, 0.08), 60);
-            setTimeout(() => this.playTone(783.99, 'triangle', 0.15, 0.1), 120);
-        },
-
-        playNetworkDisconnect() {
-            this.playTone(220, 'sawtooth', 0.3, 0.05, 110);
-        },
-
-        playCheatWarning() {
-            this.playTone(150, 'square', 0.4, 0.1, 80);
-        }
-    };
-
-    // ==========================================================================
-    // MATHEMATICAL NAVIGATION METRICS (ГЕО-МАТЕМАТИКА И АНТИЧИТ)
-    // ==========================================================================
-    const NavMath = {
-        /**
-         * Вычисление точной дистанции между координатами по формуле Гаверсинуса
-         */
-        getDistanceHaversine(lat1, lon1, lat2, lon2) {
-            const EARTH_RADIUS_METERS = 6371000;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            
-            const lat1Rad = lat1 * Math.PI / 180;
-            const lat2Rad = lat2 * Math.PI / 180;
-
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1Rad) * Math.cos(lat2Rad);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            
-            return EARTH_RADIUS_METERS * c;
-        },
-
-        /**
-         * Проверка перемещения на признаки читерства (подмена координат, езда на авто)
-         */
-        validateMovementSpeed(deltaDistanceMeters, timeDeltaSeconds) {
-            if (timeDeltaSeconds <= 0) return false;
-            
-            const calculatedVelocityMps = deltaDistanceMeters / timeDeltaSeconds;
-            console.log(`[AntiCheat] Скорость перемещения: ${((calculatedVelocityMps * 3600) / 1000).toFixed(1)} км/ч`);
-            
-            // Если скорость выше лимита бега, значит игрок за рулем транспорта
-            if (calculatedVelocityMps > State.config.antiCheatMaxSpeedMps) {
-                console.warn("[AntiCheat] Внимание: Зафиксировано превышение лимита скорости пешехода!");
-                return false;
-            }
-            return true;
-        }
-    };
-
-    // ==========================================================================
-    // REALTIME NETWORK CONNECTOR (СЕТЕВОЙ ОНЛАЙН СИНХРОНИЗАТОР)
-    // ==========================================================================
-    const NetworkClient = {
-        connect() {
-            console.log("[Network] Попытка установки соединения с бэкендом Render...");
-            
-            if (typeof io === 'undefined') {
-                console.error("[Network] Критическая ошибка: Библиотека Socket.io не обнаружена в системе!");
-                TelemetryUI.displayToast("Ошибка ядра сети");
-                return;
-            }
-
-            State.socket = io(State.config.serverEndpoint, {
-                transports: ['websocket'],
-                reconnection: true,
-                reconnectionAttempts: 10,
-                reconnectionDelay: 3000,
-                timeout: 15000
-            });
-
-            this.registerSocketEvents();
-        },
-
-        registerSocketEvents() {
-            // Успешный коннект к серверу
-            State.socket.on('connect', () => {
-                console.log("[Network] Веб-сокет канал успешно открыт. Отправка пакета авторизации игрока.");
-                TelemetryUI.displayToast("Связь с сервером установлена");
-                
-                State.socket.emit('init_player', {
-                    uid: State.uid,
-                    name: State.username,
-                    coords: State.config.salekhardDefaultCenter
-                });
-
-                // Если за время офлайна накопились сектора, выгружаем их из буфера
-                this.flushOfflineQueue();
-            });
-
-            // Синхронизация глобальной карты захваченных секторов
-            State.socket.on('sync_sectors', (globalSectorsMap) => {
-                console.log("[Network] Синхронизация реестра секторов. Обработано записей: " + Object.keys(globalSectorsMap).length);
-                State.cachedSectorsRegistry = globalSectorsMap;
-                
-                // Перерисовываем сетку на основе обновленных серверных данных
-                if (State.telemetry.lastValidLatitude) {
-                    GridEngine.renderViewBoundsGrid(State.telemetry.lastValidLatitude, State.telemetry.lastValidLongitude);
-                }
-            });
-
-            // Обновление положения других онлайн-игроков на карте Салехарда
-            State.socket.on('update_players', (activePlayersPayload) => {
-                this.syncOnlinePlayersOnMap(activePlayersPayload);
-            });
-
-            // Обновление рейтинговой таблицы лидеров
-            State.socket.on('leaderboard_update', (leaderboardArray) => {
-                TelemetryUI.rebuildLeaderboardDOM(leaderboardArray);
-            });
-
-            // Сбой связи с сервером Render
-            State.socket.on('disconnect', (reason) => {
-                console.warn("[Network] Потеря интернет-соединения сокетов:", reason);
-                AudioSynth.playNetworkDisconnect();
-                TelemetryUI.displayToast("Сеть потеряна. Переход в офлайн-режим");
-            });
-
-            State.socket.on('connect_error', (error) => {
-                console.error("[Network] Сбой подключения к серверу Render:", error);
-            });
-        },
-
-        sendLiveCoordinates(lat, lng) {
-            if (State.socket && State.socket.connected) {
-                State.socket.emit('player_move', {
-                    uid: State.uid,
-                    coords: [lat, lng]
-                });
-            }
-        },
-
-        pushSectorCaptureToServer(sectorId, geoBounds) {
-            const capturePacket = {
-                uid: State.uid,
-                username: State.username,
-                sectorId: sectorId,
-                bounds: geoBounds,
-                timestamp: Date.now()
-            };
-
-            if (State.socket && State.socket.connected) {
-                console.log(`[Network] Отправка пакета захвата сектора ${sectorId} на сервер`);
-                State.socket.emit('capture_sector', capturePacket);
-            } else {
-                // Если интернета нет, сохраняем в локальный офлайн-буфер
-                console.log(`[Network] Офлайн режим. Сектор ${sectorId} помещен в локальный буфер хранения.`);
-                State.offlineCaptureQueue.push(capturePacket);
-                this.saveOfflineBufferToStorage();
-            }
-        },
-
-        syncOnlinePlayersOnMap(players) {
-            if (!State.playersObjectCollection || !State.yandexMapInstance) return;
-            
-            // Очищаем слой отображения чужих маркеров
-            State.playersObjectCollection.removeAll();
-
-            Object.keys(players).forEach(playerUid => {
-                // Себя в этом слое не рисуем
-                if (playerUid === State.uid) return;
-
-                const playerInfo = players[playerUid];
-                if (!playerInfo.coords || playerInfo.coords.length !== 2) return;
-
-                // Создаем фиолетовую точку для союзника/врага онлайн
-                const remoteMarker = new ymaps.Placemark(playerInfo.coords, {
-                    hintContent: `Игрок: ${playerInfo.name}`,
-                    iconContent: playerInfo.name.substring(0, 2).toUpperCase()
-                }, {
-                    preset: 'islands#violetCircleIcon',
-                    iconColor: '#9b59b6',
-                    zIndex: 500
-                });
-
-                State.playersObjectCollection.add(remoteMarker);
-            });
-        },
-
-        saveOfflineBufferToStorage() {
-            try {
-                localStorage.setItem('geo_offline_queue', JSON.stringify(State.offlineCaptureQueue));
-            } catch (e) {
-                console.error("[Storage] Ошибка сохранения офлайн-буфера:", e);
-            }
-        },
-
-        loadOfflineBufferFromStorage() {
-            try {
-                const storedQueue = localStorage.getItem('geo_offline_queue');
-                if (storedQueue) {
-                    State.offlineCaptureQueue = JSON.parse(storedQueue);
-                    console.log(`[Storage] Восстановлено из памяти офлайн секторов: ${State.offlineCaptureQueue.length}`);
-                }
-            } catch (e) {
-                console.error("[Storage] Ошибка парсинга офлайн-буфера:", e);
-            }
-        },
-
-        flushOfflineQueue() {
-            this.loadOfflineBufferFromStorage();
-            if (State.offlineCaptureQueue.length === 0) return;
-
-            console.log(`[Network] Обнаружен офлайн-буфер секторов. Выгрузка пакетов на сервер: ${State.offlineCaptureQueue.length}`);
-            TelemetryUI.displayToast(`Синхронизация данных: ${State.offlineCaptureQueue.length} зон`);
-
-            while (State.offlineCaptureQueue.length > 0) {
-                const queuedPacket = State.offlineCaptureQueue.shift();
-                if (State.socket && State.socket.connected) {
-                    State.socket.emit('capture_sector', queuedPacket);
-                }
-            }
-            this.saveOfflineBufferToStorage();
-            AudioSynth.playCaptureSuccess();
-        }
-    };
-
-    // ==========================================================================
-    // PROCEDURAL GRIDS GENERATOR ENGINE (ПРОЦЕДУРНЫЙ ДВИЖОК СЕТКИ И ЗОН)
-    // ==========================================================================
-    const GridEngine = {
-        /**
-         * Генерация и умная отрисовка тактической сетки секторов вокруг игрока
-         */
-        renderViewBoundsGrid(centerLatitude, centerLongitude) {
-            if (!State.gridObjectCollection || !State.yandexMapInstance) return;
-
-            const dResolution = State.config.gridResolutionDegrees;
-            const renderRadius = 3; // Радиус видимости квадратов (7х7 секторов вокруг игрока)
-
-            // Математическое вычисление индексов текущего сектора игрока
-            const targetLatIndex = Math.floor(centerLatitude / dResolution);
-            const targetLngIndex = Math.floor(centerLongitude / dResolution);
-
-            const activeBatchKeys = new Set();
-
-            for (let i = -renderRadius; i <= renderRadius; i++) {
-                for (let j = -renderRadius; j <= renderRadius; j++) {
-                    const currentLatIndex = targetLatIndex + i;
-                    const currentLngIndex = targetLngIndex + j;
-
-                    const sectorId = `sector_${currentLatIndex}_${currentLngIndex}`;
-                    activeBatchKeys.add(sectorId);
-
-                    const sectorLatStart = currentLatIndex * dResolution;
-                    const sectorLngStart = currentLngIndex * dResolution;
-
-                    const geometryBounds = [
-                        [sectorLatStart, sectorLngStart],
-                        [sectorLatStart + dResolution, sectorLngStart + dResolution]
-                    ];
-
-                    // Определение статуса владения сектором
-                    let sectorColor = '#747d8c'; // Свободный (серый)
-                    let sectorOpacity = 0.05;
-                    let isOwnedByMe = false;
-
-                    const serverSectorRecord = State.cachedSectorsRegistry[sectorId];
-                    if (serverSectorRecord) {
-                        if (serverSectorRecord.ownerUid === State.uid) {
-                            sectorColor = '#2ecc71'; // Наш (зеленый)
-                            sectorOpacity = 0.28;
-                            isOwnedByMe = true;
-                        } else {
-                            sectorColor = '#ff4757'; // Вражеский (красный)
-                            sectorOpacity = 0.24;
-                        }
-                    }
-
-                    // 🚨 АВТО-ЗАХВАТ НА ХОДУ: Если игрок физически наступил в этот квадрат
-                    if (i === 0 && j === 0 && !isOwnedByMe) {
-                        sectorColor = '#2ecc71';
-                        sectorOpacity = 0.28;
-                        isOwnedByMe = true;
-
-                        // Активируем звуковой триггер захвата
-                        AudioSynth.triggerCapture();
-
-                        // Локально обновляем кэш для моментального отклика
-                        State.cachedSectorsRegistry[sectorId] = {
-                            ownerUid: State.uid,
-                            ownerName: State.username
-                        };
-
-                        // Обновляем локальные счетчики HUD
-                        State.telemetry.capturedCount++;
-                        document.getElementById('hud-captured').innerText = State.telemetry.capturedCount;
-
-                        // Пушим пакет захвата в сеть или офлайн буфер
-                        NetworkClient.pushSectorCaptureToServer(sectorId, geometryBounds);
-                    }
-
-                    // ОПТИМИЗАЦИЯ ПАМЯТИ: Проверяем, нарисован ли уже этот сектор
-                    const cachedRenderedObject = State.renderedSectorsPool[sectorId];
-                    if (cachedRenderedObject) {
-                        // Если цвет не изменился, пропускаем перерисовку для экономии ресурсов
-                        if (cachedRenderedObject.color === sectorColor) {
-                            continue;
-                        } else {
-                            // Если статус сектора изменился, удаляем старый объект
-                            State.gridObjectCollection.remove(cachedRenderedObject.instance);
-                            delete State.renderedSectorsPool[sectorId];
-                        }
-                    }
-
-                    // Создаем новый полигон прямоугольника Яндекса
-                    const yandexRectanglePolygon = new ymaps.Rectangle(geometryBounds, {}, {
-                        fillColor: sectorColor,
-                        fillOpacity: sectorOpacity,
-                        strokeColor: sectorColor,
-                        strokeWidth: 1,
-                        strokeOpacity: 0.18,
-                        interactive: true
-                    });
-
-                    // Ручной клик по сектору для тестирования функционала на ПК
-                    yandexRectanglePolygon.events.add('click', (e) => {
-                        e.stopPropagation();
-                        if (sectorColor !== '#2ecc71') {
-                            AudioSynth.triggerCapture();
-                            yandexRectanglePolygon.options.set({
-                                fillColor: '#2ecc71',
-                                fillOpacity: 0.28,
-                                strokeColor: '#2ecc71'
-                            });
-                            
-                            State.cachedSectorsRegistry[sectorId] = { ownerUid: State.uid, ownerName: State.username };
-                            State.telemetry.capturedCount++;
-                            document.getElementById('hud-captured').innerText = State.telemetry.capturedCount;
-                            
-                            NetworkClient.pushSectorCaptureToServer(sectorId, geometryBounds);
-                        }
-                    });
-
-                    // Регистрируем объект в пуле памяти и добавляем на карту
-                    State.gridObjectCollection.add(yandexRectanglePolygon);
-                    State.renderedSectorsPool[sectorId] = {
-                        color: sectorColor,
-                        instance: yandexRectanglePolygon
-                    };
-                }
-            }
-
-            // ОЧИСТКА ХВОСТОВ ОЗУ: Удаляем далекие сектора, которые вышли из зоны видимости
-            Object.keys(State.renderedSectorsPool).forEach(key => {
-                if (!activeBatchKeys.has(key)) {
-                    State.gridObjectCollection.remove(State.renderedSectorsPool[key].instance);
-                    delete State.renderedSectorsPool[key];
-                }
-            });
-        }
-    };
-
-    // ==========================================================================
-    // HARDWARE GPS TRACKING HUB (СЕНСОРНЫЙ GPS ХАБ И ПОДСЧЕТ ШАГОВ)
-    // ==========================================================================
-    const GPSCore = {
-        start() {
-            if (State.isTrackingActive) return;
-            console.log("[GPS Engine] Запуск датчиков позиционирования...");
-
-            if (!navigator.geolocation) {
-                console.error("[GPS] Аппаратный модуль геолокации отсутствует на девайсе!");
-                alert("Бро, твое устройство не поддерживает GPS датчики!");
-                return;
-            }
-
-            State.isTrackingActive = true;
-            State.gpsWatchId = navigator.geolocation.watchPosition(
-                this.onGpsCoordsUpdate.bind(this),
-                this.onGpsSensorError.bind(this),
-                {
-                    enableHighAccuracy: true, // Максимальная аппаратная мощность GPS
-                    maximumAge: 1000,         // Сброс устаревшего кэша через 1 сек
-                    timeout: 15000            // Таймаут датчика
-                }
-            );
-        },
-
-        stop() {
-            if (State.isTrackingActive && State.gpsWatchId !== null) {
-                navigator.geolocation.clearWatch(State.gpsWatchId);
-                State.gpsWatchId = null;
-                State.isTrackingActive = false;
-                console.log("[GPS Engine] Датчики геолокации остановлены.");
-            }
-        },
-
-        onGpsCoordsUpdate(position) {
-            const latitude = position.coords.latitude;
-            const longitude = position.coords.longitude;
-            const positionAccuracy = position.coords.accuracy;
-            const currentTimestamp = position.timestamp || Date.now();
-
-            // ФИЛЬТР ТОЧНОСТИ: Если прилетел ложный пинг от сотовой вышки (плохая точность), бракуем пакет
-            if (positionAccuracy > State.config.gpsMinAccuracyThresholdMeters) {
-                console.warn(`[GPS Engine] Координата отклонена. Низкая точность сенсора: ${positionAccuracy.toFixed(1)} метров.`);
-                return;
-            }
-
-            // Если это не первая координата за сессию, запускаем математический обсчет метров и шагов
-            if (State.telemetry.lastValidLatitude !== null && State.telemetry.lastValidLongitude !== null) {
-                const distanceDeltaMeters = NavMath.getDistanceHaversine(
-                    State.telemetry.lastValidLatitude,
-                    State.telemetry.lastValidLongitude,
-                    latitude,
-                    longitude
-                );
-
-                const timeDeltaSeconds = (currentTimestamp - State.telemetry.lastTrackTimestamp) / 1000;
-
-                // ФИЛЬТР ФОНОВОГО ШУМА GPS: Отсекаем ложные колебания датчика, когда игрок просто стоит на месте
-                if (distanceDeltaMeters > 2.0) {
-                    
-                    // АНТИЧИТ ПРОВЕРКА: Проверяем реальную скорость перемещения ног
-                    const isMovementLegit = NavMath.validateMovementSpeed(distanceDeltaMeters, timeDeltaSeconds);
-                    
-                    if (isMovementLegit) {
-                        State.telemetry.accumulatedDistanceMeters += distanceDeltaMeters;
-                        
-                        // Математическая конвертация метров в реальные шаги (в среднем 1 метр = 1.42 шага)
-                        State.telemetry.steps = Math.floor(State.telemetry.accumulatedDistanceMeters * 1.42);
-                        
-                        // Мгновенно выводим данные в HUD панель
-                        document.getElementById('hud-steps').innerText = State.telemetry.steps;
-                    } else {
-                        // Если античит поймал превышение скорости
-                        AudioSynth.playCheatWarning();
-                        TelemetryUI.displayToast("Скорость движения слишком высока!");
-                    }
-                }
-            }
-
-            // Обновляем метки времени и координат телеметрии
-            State.telemetry.lastValidLatitude = latitude;
-            State.telemetry.lastValidLongitude = longitude;
-            State.telemetry.lastTrackTimestamp = currentTimestamp;
-
-            // Обновляем положение синего маркера на карте Яндекса
-            this.updateMapPlayerPosition(latitude, longitude);
-
-            // Отправляем пакет на сервер для отображения в общем онлайне
-            NetworkClient.sendLiveCoordinates(latitude, longitude);
-
-            // Пересчитываем сетку квадратов вокруг игрока и проверяем авто-захват зоны под ногами
-            GridEngine.renderViewBoundsGrid(latitude, longitude);
-        },
-
-        onGpsSensorError(error) {
-            console.error(`[GPS Engine] Критический сбой датчика навигации. Код ошибки: ${error.code}. Текст: ${error.message}`);
-            TelemetryUI.displayToast("Сбой сигнала GPS. Поиск спутников...");
-            
-            // Если мы тестируем проект на ПК (где нет полноценного аппаратного GPS)
-            if (State.telemetry.lastValidLatitude === null) {
-                console.log("[GPS Engine] Запуск режима эмуляции карты для веб-тестирования.");
-                this.updateMapPlayerPosition(State.config.salekhardDefaultCenter[0], State.config.salekhardCenter[1]);
-                GridEngine.renderViewBoundsGrid(State.config.salekhardDefaultCenter[0], State.config.salekhardDefaultCenter[1]);
-            }
-        },
-
-        updateMapPlayerPosition(lat, lng) {
-            if (!CoreEngine.MapCore.mapInstance) return;
-
-            if (!State.localPlayerPlacemark) {
-                // Инициализируем наш собственный маркер (аккуратная синяя точка Яндекса)
-                State.localPlayerPlacemark = new ymaps.Placemark([lat, lng], {
-                    hintContent: `Игрок: ${State.username} (Ты)`
-                }, {
-                    preset: 'islands#blueCircleDotIcon',
-                    iconColor: '#0066ff',
-                    zIndex: 999
-                });
-
-                CoreEngine.MapCore.mapInstance.geoObjects.add(State.localPlayerPlacemark);
-                // Плавно центрируем карту Салехарда на игрока
-                CoreEngine.MapCore.mapInstance.setCenter([lat, lng], 17, { duration: 400 });
-            } else {
-                // Если маркер уже создан, плавно перемещаем его координаты на новые
-                State.localPlayerPlacemark.geometry.setCoordinates([lat, lng]);
-            }
-        }
-    };
-
-    // ==========================================================================
-    // TELEMETRY HUD DOM CONTROLLER (УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ И РЕЙТИНГАМИ)
-    // ==========================================================================
-    const TelemetryUI = {
-        displayToast(message) {
-            const toastNode = document.getElementById('server-notification');
-            const textNode = document.getElementById('notification-text');
-            if (!toastNode || !textNode) return;
-
-            textNode.innerText = message;
-            toastNode.style.display = 'flex';
-            
-            // Автоматически гасим уведомление через 4 секунды
-            if (toastNode.timeoutId) clearTimeout(toastNode.timeoutId);
-            toastNode.timeoutId = setTimeout(() => {
-                toastNode.style.display = 'none';
-            }, 4000);
-        },
-
-        rebuildLeaderboardDOM(leaderboardData) {
-            const containerNode = document.getElementById('leaderboard-content');
-            if (!containerNode) return;
-
-            if (!leaderboardData || leaderboardData.length === 0) {
-                containerNode.innerHTML = `<div style="color: var(--text-muted); text-align: center; margin-top: 20px; font-size: 13px;">Сектора пусты</div>`;
-                return;
-            }
-
-            // Процедурный рендеринг строк топа игроков
-            containerNode.innerHTML = leaderboardData.map((playerRow, index) => {
-                const isItMe = (playerRow.name.toLowerCase() === State.username.toLowerCase());
-                const highlightedStyle = isItMe ? 'style="border-color: var(--accent-blue); background: rgba(0,102,255,0.04);"' : '';
-                
-                return `
-                    <div class="leader-item" ${highlightedStyle}>
-                        <span class="leader-name" style="${isItMe ? 'color: var(--accent-blue); font-weight: 800;' : ''}">
-                            ${index + 1}. ${playerRow.name} ${isItMe ? '(Ты)' : ''}
-                        </span>
-                        <span class="leader-score">${playerRow.sectors || 0} шт.</span>
-                    </div>
-                `;
-            }).join('');
-        },
-
-        toggleLeaderboard(shouldOpen) {
-            AudioSynth.playInterfaceClick();
-            const panelNode = document.getElementById('leaderboard-panel');
-            if (!panelNode) return;
-
-            if (shouldOpen) {
-                panelNode.classList.add('open');
-            } else {
-                panelNode.classList.remove('open');
-            }
-        }
-    };
-
-    // ==========================================================================
-    // INITIALIZATION & ENTRY POINT (ГЛОБАЛЬНАЯ ТОЧКА СТАРТА)
-    // ==========================================================================
-    return {
-        // Проброс внутренних модулей наружу для внешних HTML триггеров
-        Auth: {
-            handleLogin(event) { Auth.handleLogin(event); },
-            loadSession() { Auth.loadSession(); }
-        },
-        UI: {
-            toggleLeaderboard(status) { TelemetryUI.toggleLeaderboard(status); }
-        },
-        Audio: {
-            toggleSound() { AudioSynth.toggleSound(); },
-            playClick() { AudioSynth.playInterfaceClick(); }
-        },
-        MapCore: {
-            initEngine() {
-                // Регистрируем ссылки на глобальные DOM-контейнеры Яндекса из Модуля 2
-                State.yandexMapInstance = CoreEngine.MapCore.mapInstance;
-                State.gridObjectCollection = CoreEngine.MapCore.gridGroup;
-                State.playersObjectCollection = CoreEngine.MapCore.playersGroup;
-                
-                // Перенаправляем управление на внутренний синглтон
-                MapCore.initEngine();
-            },
-            // Заглушки, которые заполняются Модулем 2 при старте ymaps.Map
-            mapInstance: null,
-            gridGroup: null,
-            playersGroup: null
-        }
-    };
-
-})();
