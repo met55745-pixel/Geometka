@@ -117,14 +117,74 @@
         .btn-submit:active { opacity: 0.8; }
 
         /* ==========================================================================
-           МОДУЛЬ 2: ИГРОВАЯ КАРТА
+           МОДУЛЬ 2: ИГРОВАЯ КАРТА И ТАКТИЧЕСКИЙ HUD ИЗ СКЕТЧА
            ========================================================================== */
         #screen-map { z-index: 50; background: #000; }
-        #map-container { width: 100vw; height: 100vh; }
-        .map-placeholder-text {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: var(--text-muted); font-size: 16px; text-align: center; pointer-events: none; z-index: 999;
+        #map-container { width: 100vw; height: 100vh; z-index: 10; }
+        
+        /* Плавающая панель оверлея */
+        .hud-top-panel {
+            position: absolute;
+            top: 16px; left: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 999;
+            pointer-events: none;
         }
+
+        .hud-avatar {
+            width: 46px; height: 46px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            background-color: #1a1a24;
+            background-size: cover;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            pointer-events: auto;
+        }
+
+        .hud-stats-badge {
+            background: var(--card-glass);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 10px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+            pointer-events: auto;
+            text-transform: lowercase;
+        }
+
+        .stats-divider {
+            color: rgba(255, 255, 255, 0.15);
+            font-weight: 300;
+        }
+
+        .stats-val {
+            color: #ffffff;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+
+        /* Адаптация кнопок Leaflet под темную тему */
+        .leaflet-control-zoom {
+            border: 1px solid var(--border) !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+        }
+        .leaflet-control-zoom-in, .leaflet-control-zoom-out {
+            background: var(--card-glass) !important;
+            color: #fff !important;
+            border-bottom: 1px solid var(--border) !important;
+        }
+        .leaflet-bar a:hover { background: rgba(255,255,255,0.05) !important; }
+        .leaflet-control-attribution { background: transparent !important; color: rgba(255,255,255,0.2) !important; }
     </style>
 </head>
 <body>
@@ -148,7 +208,14 @@
     </div>
 
     <div id="screen-map" class="app-screen">
-        <div class="map-placeholder-text">Карта Салехарда загружается... 🗺️</div>
+        <div class="hud-top-panel">
+            <div class="hud-avatar" id="player-avatar"></div>
+            <div class="hud-stats-badge">
+                <div>шаги:<span class="stats-val" id="hud-steps">0</span></div>
+                <div class="stats-divider">|</div>
+                <div>захвачено:<span class="stats-val" id="hud-captured">0%</span></div>
+            </div>
+        </div>
         <div id="map-container"></div>
     </div>
 
@@ -158,6 +225,11 @@
     <script>
         let currentUsername = null;
         let playerUID = null;
+        
+        // Переменные Leaflet
+        let map = null;
+        let playerMarker = null;
+        let playerAccuracyCircle = null;
 
         function switchScreen(screenId) {
             document.querySelectorAll('.app-screen').forEach(screen => screen.classList.remove('active'));
@@ -187,8 +259,81 @@
             initGameEngine();
         }
 
+        // ОЖИВЛЕННЫЙ ИГРОВОЙ ДВИЖОК
         function initGameEngine() {
             console.log(`Инициализация для: ${currentUsername} (UID: ${playerUID})`);
+            
+            // Ставим аватарку-робота на основе уникального ника игрока
+            document.getElementById('player-avatar').style.backgroundImage = `url('https://api.dicebear.com/7.x/bottts/svg?seed=${currentUsername}')`;
+
+            // Дефолтный фокус на Салехард (ул. Манчинского / Свердлова), пока грузится GPS
+            if (!map) {
+                map = L.map('map-container', {
+                    zoomControl: true,
+                    attributionControl: true
+                }).setView([66.5300, 66.6150], 16);
+
+                // Подключаем стильную ТЕМНУЮ тактическую карту
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    maxZoom: 19
+                }).addTo(map);
+            }
+
+            // Запускаем непрерывный GPS-трекинг смартфона
+            startLocationTracking();
+        }
+
+        function startLocationTracking() {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        const accuracy = position.coords.accuracy;
+
+                        console.log(`GPS трекер: ${lat}, ${lng} (Точность: ${accuracy}м)`);
+
+                        // Отрисовка синего игрового маркера из твоего макета
+                        if (!playerMarker) {
+                            // Зона точности вокруг игрока
+                            playerAccuracyCircle = L.circle([lat, lng], {
+                                radius: accuracy,
+                                color: '#1e90ff',
+                                fillColor: '#1e90ff',
+                                fillOpacity: 0.12,
+                                weight: 1
+                            }).addTo(map);
+
+                            // Синий маркер-точка по центру
+                            playerMarker = L.circleMarker([lat, lng], {
+                                radius: 8,
+                                color: '#ffffff',
+                                fillColor: '#0066ff',
+                                fillOpacity: 1,
+                                weight: 2
+                            }).addTo(map);
+
+                            // При первом получении координат плавно центрируем карту на игрока
+                            map.setView([lat, lng], 17);
+                        } else {
+                            // Динамическое обновление при ходьбе
+                            playerMarker.setLatLng([lat, lng]);
+                            playerAccuracyCircle.setLatLng([lat, lng]);
+                            playerAccuracyCircle.setRadius(accuracy);
+                        }
+                    },
+                    (error) => {
+                        console.error("Ошибка GPS геолокации:", error);
+                    },
+                    {
+                        enableHighAccuracy: true, // Использовать аппаратный GPS на максимум
+                        maximumAge: 1000,
+                        timeout: 10000
+                    }
+                );
+            } else {
+                alert("Бро, твой девайс не поддерживает GPS!");
+            }
         }
 
         // Авто-вход
