@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>GeoMetka</title>
     
-    <!-- Карты Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
@@ -117,17 +116,6 @@
         }
         .btn-submit:active { opacity: 0.8; }
 
-        /* КНОПКА GOOGLE */
-        .btn-google {
-            width: 100%; padding: 14px; background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px;
-            color: var(--text-main); font-size: 14px; font-weight: 600; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-            transition: background 0.2s;
-        }
-        .btn-google:active { background: rgba(255, 255, 255, 0.05); }
-        .btn-google img { width: 18px; height: 18px; }
-
         /* ==========================================================================
            МОДУЛЬ 2: ИГРОВАЯ КАРТА
            ========================================================================== */
@@ -141,7 +129,6 @@
 </head>
 <body>
 
-    <!-- ЭКРАН 1: АВТОРИЗАЦИЯ -->
     <div id="screen-login" class="app-screen active">
         <div class="tactical-grid"></div>
         <div class="login-container">
@@ -155,63 +142,39 @@
                     <input type="text" id="username" placeholder=" " required autocomplete="off">
                     <label for="username">Твой уникальный ник</label>
                 </div>
-
                 <button type="submit" class="btn-submit">Войти по нику</button>
             </form>
-
-            <!-- Кнопка авторизации через Google -->
-            <button class="btn-google" onclick="handleGoogleLogin()">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_Access_Logo.svg" alt="G">
-                Войти через Google
-            </button>
         </div>
     </div>
 
-    <!-- ЭКРАН 2: ИГРОВОЕ ПОЛЕ И КАРТА -->
     <div id="screen-map" class="app-screen">
         <div class="map-placeholder-text">Карта Салехарда загружается... 🗺️</div>
         <div id="map-container"></div>
     </div>
 
-    <!-- Скрипты -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     
     <script>
-        // Глобальные переменные игрока
         let currentUsername = null;
-        let playerUID = null; // Будет уникальным ID (из Google или сгенерирован по нику)
+        let playerUID = null;
 
-        // Переключение экранов
         function switchScreen(screenId) {
             document.querySelectorAll('.app-screen').forEach(screen => screen.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
         }
 
-        // 1. Обычный вход по никнейму
+        // Вход по нику
         function handleLocalLogin(event) {
             event.preventDefault();
             const username = document.getElementById('username').value.trim();
             if (username) {
-                // Чтобы результаты сохранялись при переносе, UID теперь равен никнейму!
                 savePlayerSession(username, 'USER_' + username);
                 bootIntoGame();
             }
         }
 
-        // 2. Вход через Google
-        function handleGoogleLogin() {
-            console.log("Вызов Google Auth...");
-            // Имитация получения данных от Google для веб-тестов
-            // Настоящий токен выдаст уникальный Google ID, который не меняется на других телах
-            const mockGoogleName = "Matvey_Player"; 
-            const mockGoogleID = "G_ID_77777"; 
-
-            savePlayerSession(mockGoogleName, mockGoogleID);
-            bootIntoGame();
-        }
-
-        // Сохранение сессии в память (localStorage)
+        // Сохранение сессии
         function savePlayerSession(name, uid) {
             localStorage.setItem('geo_username', name);
             localStorage.setItem('geo_uid', uid);
@@ -219,7 +182,6 @@
             playerUID = uid;
         }
 
-        // Запуск игрового движка
         function bootIntoGame() {
             switchScreen('screen-map');
             initGameEngine();
@@ -227,11 +189,9 @@
 
         function initGameEngine() {
             console.log(`Инициализация для: ${currentUsername} (UID: ${playerUID})`);
-            // Сюда мы подключим сокеты к https://pixselbatll.onrender.com
-            // Бэкенд будет привязывать захваченные зоны к нашему geo_uid
         }
 
-        // АВТО-ВХОД: Если чел уже логинился, сразу кидаем на карту!
+        // Авто-вход
         document.addEventListener('DOMContentLoaded', () => {
             const savedName = localStorage.getItem('geo_username');
             const savedUID = localStorage.getItem('geo_uid');
@@ -239,7 +199,6 @@
             if (savedName && savedUID) {
                 currentUsername = savedName;
                 playerUID = savedUID;
-                console.log(`Найден аккаунт: ${currentUsername}. Пропускаем вход!`);
                 bootIntoGame();
             }
         });
