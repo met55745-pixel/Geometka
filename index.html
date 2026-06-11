@@ -120,11 +120,11 @@
         .btn-submit:active { opacity: 0.8; }
 
         /* ==========================================================================
-           МОДУЛЬ 2: ИГРОВАЯ КАРТА И ТАКТИЧЕСКИЙ HUD
+           МОДУЛЬ 2: ИГРОВАЯ КАРТА И ЛЕТНИЙ HUD
            ========================================================================== */
         #screen-map { 
             z-index: 50; 
-            background: #f5f6fa; 
+            background: #eef1f5; 
         }
         
         #map-container { 
@@ -138,11 +138,11 @@
         .hud-top-panel {
             position: absolute;
             top: 20px; 
-            left: 24px; /* Увеличили отступ, чтобы не резало экран */
+            left: 24px; 
             display: flex;
             align-items: center;
             gap: 12px;
-            z-index: 9999; /* Вывели на самый верхний слой */
+            z-index: 9999; 
             pointer-events: none;
         }
 
@@ -154,7 +154,7 @@
             background-size: cover;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             pointer-events: auto;
-            flex-shrink: 0; /* Запрещаем аватарке сжиматься и ломаться */
+            flex-shrink: 0; 
         }
 
         .hud-stats-badge {
@@ -186,29 +186,32 @@
             margin-left: 5px;
         }
 
-        /* Жестко убираем любые дефолтные кнопки Leaflet слева сверху */
+        /* Полностью скрываем дефолтный зум Leaflet */
         .leaflet-top.leaflet-left {
             display: none !important;
         }
 
-        /* Позиционирование кастомного блока зума в правом нижнем углу */
+        /* Позиционирование кнопок зума снизу справа */
         .leaflet-bottom.leaflet-right {
-            bottom: 40px !important; /* Подняли выше, чтобы не резало рамкой */
+            bottom: 40px !important; 
             right: 20px !important;
             z-index: 999;
         }
 
         .leaflet-control-zoom {
-            border: 1px solid rgba(0, 0, 0, 0.1) !important;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important;
+            border: 1px solid rgba(0, 0, 0, 0.15) !important;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
+            border-radius: 10px !important;
+            overflow: hidden;
         }
         .leaflet-control-zoom-in, .leaflet-control-zoom-out {
-            background: #ffffff !important; /* Кнопки светлые, под новую карту */
-            color: #333333 !important;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+            background: #ffffff !important; 
+            color: #2f3542 !important;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+            font-weight: 700 !important;
         }
-        .leaflet-bar a:hover { background: #f4f4f4 !important; }
-        .leaflet-control-attribution { background: transparent !important; color: rgba(0,0,0,0.3) !important; }
+        .leaflet-bar a:hover { background: #f1f2f6 !important; }
+        .leaflet-control-attribution { background: rgba(255,255,255,0.7) !important; color: #747d8c !important; border-radius: 4px; padding: 0 5px !important; }
     </style>
 </head>
 <body>
@@ -252,7 +255,6 @@
         
         let map = null;
         let playerMarker = null;
-        let playerAccuracyCircle = null;
 
         function switchScreen(screenId) {
             document.querySelectorAll('.app-screen').forEach(screen => screen.classList.remove('active'));
@@ -287,16 +289,15 @@
 
             if (!map) {
                 map = L.map('map-container', {
-                    zoomControl: false,
+                    zoomControl: false, 
                     attributionControl: true
                 }).setView([66.5300, 66.6150], 16);
 
-                // НОВАЯ СЕРЕБРИСТО-СЕРАЯ МИНИМАЛИСТИЧНАЯ КАРТА
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                // РЕАЛЬНАЯ ЛЕТНЯЯ КАРТА (СОЧНАЯ ЗЕЛЕНЬ, ПАРКИ И ЗДАНИЯ)
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19
                 }).addTo(map);
 
-                // Создаем зум-контроллер в безопасном правом нижнем углу
                 L.control.zoom({ position: 'bottomright' }).addTo(map);
             }
 
@@ -315,17 +316,9 @@
                     (position) => {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
-                        const accuracy = position.coords.accuracy;
 
                         if (!playerMarker) {
-                            playerAccuracyCircle = L.circle([lat, lng], {
-                                radius: accuracy,
-                                color: '#0066ff',
-                                fillColor: '#0066ff',
-                                fillOpacity: 0.1,
-                                weight: 1
-                            }).addTo(map);
-
+                            // ОСТАВИЛИ ТОЛЬКО АККУРАТНЫЙ СИНИЙ МАРКЕР КУРСОР, КОНТУР УДАЛЕН
                             playerMarker = L.circleMarker([lat, lng], {
                                 radius: 8,
                                 color: '#ffffff',
@@ -337,8 +330,6 @@
                             map.setView([lat, lng], 17);
                         } else {
                             playerMarker.setLatLng([lat, lng]);
-                            playerAccuracyCircle.setLatLng([lat, lng]);
-                            playerAccuracyCircle.setRadius(accuracy);
                         }
                     },
                     (error) => { console.error("GPS error:", error); },
