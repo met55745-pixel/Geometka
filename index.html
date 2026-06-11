@@ -11,12 +11,12 @@
         :root {
             --bg-dark: #0a0a0f;
             --bg-grid: #121218;
-            --card-glass: rgba(20, 20, 26, 0.9);
+            --card-glass: rgba(20, 20, 26, 0.95);
             --accent-gray: #2f3542;
             --accent-red: #ff4757; 
             --text-main: #ffffff;
             --text-muted: #747d8c;
-            --border: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.1);
         }
 
         * {
@@ -124,7 +124,7 @@
            ========================================================================== */
         #screen-map { 
             z-index: 50; 
-            background: #000; 
+            background: #f5f6fa; 
         }
         
         #map-container { 
@@ -137,72 +137,78 @@
         
         .hud-top-panel {
             position: absolute;
-            top: 16px; left: 16px;
+            top: 20px; 
+            left: 24px; /* Увеличили отступ, чтобы не резало экран */
             display: flex;
             align-items: center;
-            gap: 10px;
-            z-index: 999;
+            gap: 12px;
+            z-index: 9999; /* Вывели на самый верхний слой */
             pointer-events: none;
         }
 
         .hud-avatar {
-            width: 46px; height: 46px;
+            width: 48px; height: 48px;
             border-radius: 50%;
             border: 2px solid var(--border);
             background-color: #1a1a24;
             background-size: cover;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             pointer-events: auto;
+            flex-shrink: 0; /* Запрещаем аватарке сжиматься и ломаться */
         }
 
         .hud-stats-badge {
             background: var(--card-glass);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border: 1px solid var(--border);
             border-radius: 14px;
-            padding: 10px 18px;
+            padding: 12px 20px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
             color: #ffffff;
             font-size: 14px;
             font-weight: 600;
             letter-spacing: 0.3px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
             pointer-events: auto;
         }
 
         .stats-divider {
-            color: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.2);
             font-weight: 300;
         }
 
         .stats-val {
             color: #ffffff;
             font-weight: 700;
-            margin-left: 4px;
+            margin-left: 5px;
         }
 
-        /* 🛡️ БУЛЛЕТПРУФ-ФИКС: Прячем зум слева сверху на уровне стилей, если кэш залагал */
-        .leaflet-top.leaflet-left .leaflet-control-zoom {
+        /* Жестко убираем любые дефолтные кнопки Leaflet слева сверху */
+        .leaflet-top.leaflet-left {
             display: none !important;
         }
 
-        /* Кастомизация кнопок зума в правом нижнем углу */
+        /* Позиционирование кастомного блока зума в правом нижнем углу */
+        .leaflet-bottom.leaflet-right {
+            bottom: 40px !important; /* Подняли выше, чтобы не резало рамкой */
+            right: 20px !important;
+            z-index: 999;
+        }
+
         .leaflet-control-zoom {
-            border: 1px solid var(--border) !important;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
-            margin-bottom: 25px !important; 
-            margin-right: 15px !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important;
         }
         .leaflet-control-zoom-in, .leaflet-control-zoom-out {
-            background: var(--card-glass) !important;
-            color: #fff !important;
-            border-bottom: 1px solid var(--border) !important;
+            background: #ffffff !important; /* Кнопки светлые, под новую карту */
+            color: #333333 !important;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
         }
-        .leaflet-bar a:hover { background: rgba(255,255,255,0.05) !important; }
-        .leaflet-control-attribution { background: transparent !important; color: rgba(255,255,255,0.1) !important; }
+        .leaflet-bar a:hover { background: #f4f4f4 !important; }
+        .leaflet-control-attribution { background: transparent !important; color: rgba(0,0,0,0.3) !important; }
     </style>
 </head>
 <body>
@@ -281,15 +287,16 @@
 
             if (!map) {
                 map = L.map('map-container', {
-                    zoomControl: false, // Отключаем дефолтный зум
+                    zoomControl: false,
                     attributionControl: true
                 }).setView([66.5300, 66.6150], 16);
 
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                // НОВАЯ СЕРЕБРИСТО-СЕРАЯ МИНИМАЛИСТИЧНАЯ КАРТА
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                     maxZoom: 19
                 }).addTo(map);
 
-                // Создаем зум заново, принудительно двигая его в правый нижний угол
+                // Создаем зум-контроллер в безопасном правом нижнем углу
                 L.control.zoom({ position: 'bottomright' }).addTo(map);
             }
 
@@ -313,9 +320,9 @@
                         if (!playerMarker) {
                             playerAccuracyCircle = L.circle([lat, lng], {
                                 radius: accuracy,
-                                color: '#1e90ff',
-                                fillColor: '#1e90ff',
-                                fillOpacity: 0.12,
+                                color: '#0066ff',
+                                fillColor: '#0066ff',
+                                fillOpacity: 0.1,
                                 weight: 1
                             }).addTo(map);
 
